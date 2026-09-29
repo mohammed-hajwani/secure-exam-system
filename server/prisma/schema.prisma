@@ -1,0 +1,163 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ADMIN
+  FACULTY
+  STUDENT
+}
+
+enum QuestionType {
+  MCQ
+  TRUE_FALSE
+  SHORT_ANSWER
+}
+
+enum AttemptStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  SUBMITTED
+  AUTO_SUBMITTED
+}
+
+model User {
+  id            String         @id @default(uuid())
+  name          String
+  email         String         @unique
+  passwordHash  String
+  role          Role           @default(STUDENT)
+  batch         String?        // e.g. "CS-2026-A"
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  
+  otpCodes      OtpCode[]
+  refreshTokens RefreshToken[]
+  examsCreated  Exam[]         @relation("FacultyExams")
+  questions     Question[]
+  attempts      ExamAttempt[]
+  auditLogs     AuditLog[]
+}
+
+model OtpCode {
+  id         String   @id @default(uuid())
+  userId     String
+  otpHash    String
+  expiresAt  DateTime
+  isUsed     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model RefreshToken {
+  id         String   @id @default(uuid())
+  userId     String
+  tokenHash  String
+  isRevoked  Boolean  @default(false)
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Question {
+  id           String         @id @default(uuid())
+  subject      String
+  createdBy    String
+  type         QuestionType   @default(MCQ)
+  text         String
+  marks        Float          @default(1.0)
+  options      Option[]
+  examLinks    ExamQuestion[]
+  answers      StudentAnswer[]
+
+  creator      User           @relation(fields: [createdBy], references: [id])
+}
+
+model Option {
+  id         String   @id @default(uuid())
+  questionId String
+  text       String
+  isCorrect  Boolean  @default(false)
+
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+}
+
+model Exam {
+  id              String         @id @default(uuid())
+  title           String
+  createdById     String
+  subject         String
+  targetBatch     String
+  durationMinutes Int
+  startTime       DateTime
+  endTime         DateTime
+  maxViolations   Int            @default(3)
+  isPublished     Boolean        @default(false)
+  
+  creator         User           @relation("FacultyExams", fields: [createdById], references: [id])
+  questions       ExamQuestion[]
+  attempts        ExamAttempt[]
+}
+
+model ExamQuestion {
+  examId     String
+  questionId String
+
+  exam       Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@id([examId, questionId])
+}
+
+model ExamAttempt {
+  id             String          @id @default(uuid())
+  examId         String
+  studentId      String
+  startedAt      DateTime?
+  submittedAt    DateTime?
+  status         AttemptStatus   @default(NOT_STARTED)
+  violationCount Int             @default(0)
+  isFlagged      Boolean         @default(false)
+  score          Float           @default(0.0)
+
+  exam           Exam            @relation(fields: [examId], references: [id])
+  student        User            @relation(fields: [studentId], references: [id])
+  answers        StudentAnswer[]
+  auditLogs      AuditLog[]
+
+  @@unique([examId, studentId])
+}
+
+model StudentAnswer {
+  id               String       @id @default(uuid())
+  attemptId        String
+  questionId       String
+  selectedOptionId String?
+  textAnswer       String?
+  displayOrder     Int          // For question shuffling per student
+
+  attempt          ExamAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question         Question     @relation(fields: [questionId], references: [id])
+
+  @@unique([attemptId, questionId])
+}
+
+model AuditLog {
+  id        String       @id @default(uuid())
+  userId    String?
+  attemptId String?
+  eventType String       // "LOGIN", "OTP_VERIFY", "TAB_SWITCH", "FULLSCREEN_EXIT", "AUTO_SUBMIT", "GRADE_CHANGE"
+  details   String?      // JSON or context metadata string
+  ipAddress String?
+  timestamp DateTime     @default(now())
+
+  user      User?        @relation(fields: [userId], references: [id])
+  attempt   ExamAttempt? @relation(fields: [attemptId], references: [id])
+}
