@@ -15,7 +15,7 @@ const Login = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResending, setIsResending] = useState(false);
 
-  const { login, verifyOtp, resendOtp } = useAuth();
+  const { login, verifyOtp, resendOtp, sessionExpired } = useAuth();
   const navigate = useNavigate();
 
   const handleCredentialsSubmit = async (e) => {
@@ -97,6 +97,13 @@ const Login = () => {
             {step === 'otp' ? 'Enter 2FA security code' : 'Sign in to your examination portal'}
           </p>
         </div>
+
+        {sessionExpired && !error && step === 'credentials' && (
+          <div className="mb-5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-start gap-2.5">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>Your session has ended. Please sign in again.</span>
+          </div>
+        )}
 
         {error && (
           <div className="mb-5 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-start gap-2.5">

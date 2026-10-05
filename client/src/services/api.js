@@ -12,8 +12,16 @@ const api = axios.create({
 let accessToken = null;
 let isRefreshing = null;
 
+// Called when the server rejects the refresh token (logged out elsewhere,
+// account deactivated, password changed, or refresh token reuse detected)
+let onSessionExpired = null;
+
 export const setAccessToken = (token) => {
   accessToken = token;
+};
+
+export const setOnSessionExpired = (callback) => {
+  onSessionExpired = callback;
 };
 
 export const getAccessToken = () => accessToken;
@@ -56,7 +64,13 @@ api.interceptors.response.use(
         originalRequest.headers.Authorization = `Bearer ${token}`;
         return api(originalRequest);
       } catch (refreshError) {
-        setAccessToken(null);
+        // Only end the session when the server says it is invalid,
+        // not on a network error (server unreachable, Wi-Fi drop)
+        const status = refreshError.response?.status;
+        if (status === 401 || status === 403) {
+          setAccessToken(null);
+          if (onSessionExpired) onSessionExpired();
+        }
         return Promise.reject(refreshError);
       }
     }

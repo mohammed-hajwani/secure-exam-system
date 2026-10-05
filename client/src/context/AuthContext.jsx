@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import api, { setAccessToken as setGlobalAccessToken } from '../services/api';
+import api, { setAccessToken as setGlobalAccessToken, setOnSessionExpired } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -7,6 +7,18 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [accessToken, setAccessTokenState] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [sessionExpired, setSessionExpired] = useState(false);
+
+  // Clear auth state when the API layer reports the session is no longer valid;
+  // route guards then redirect to /login, where a notice is shown
+  useEffect(() => {
+    setOnSessionExpired(() => {
+      setAccessTokenState(null);
+      setUser(null);
+      setSessionExpired(true);
+    });
+    return () => setOnSessionExpired(null);
+  }, []);
 
   // Attempt silent session restore on mount using the HttpOnly refresh token cookie
   useEffect(() => {
@@ -49,6 +61,7 @@ export const AuthProvider = ({ children }) => {
       setGlobalAccessToken(token);
       setAccessTokenState(token);
       setUser(userData);
+      setSessionExpired(false);
 
       return response.data;
     } catch (error) {
@@ -71,6 +84,7 @@ export const AuthProvider = ({ children }) => {
       setGlobalAccessToken(token);
       setAccessTokenState(token);
       setUser(userData);
+      setSessionExpired(false);
 
       return response.data;
     } catch (error) {
@@ -116,6 +130,7 @@ export const AuthProvider = ({ children }) => {
     user,
     accessToken,
     loading,
+    sessionExpired,
     isAuthenticated: !!user && !!accessToken,
     login,
     verifyOtp,
