@@ -95,14 +95,40 @@ sequenceDiagram
 #### 1. In-Memory Access Token + HttpOnly Refresh Token
 * **Implementation:** 
   * Access tokens expire in 15 minutes and are kept **in memory** via React `AuthContext` state. They are never written to `localStorage` or `sessionStorage`.
-  * Refresh tokens expire in 7 days and are set via `res.cookie('refreshToken', token, { httpOnly: true, secure: true, sameSite: 'strict', path: '/api/v1/auth' })`.
-  * The database stores only the `SHA-256` hash of the refresh token (`prisma.refreshToken.create({ data: { tokenHash: sha256(token) } })`), ensuring database leaks do not expose reusable sessions.
+  * Refresh tokens expire in 7 days and are set as an `HttpOnly` cookie using the options in `server/src/config/security.js`: `{ httpOnly: true, secure: NODE_ENV === 'production', sameSite: NODE_ENV === 'production' ? 'strict' : 'lax', maxAge: 7 days }`. JavaScript can never read the cookie, and in production it is only sent over HTTPS and never on cross-site requests.
+  * The database stores only the `SHA-256` hash of the refresh token (`prisma.refreshToken.create({ data: { tokenHash: sha256(token) } })`), ensuring database leaks do not expose reusable sessions. Each token carries a random `jwtid`, so two tokens issued in the same second are still distinct.
 
-#### 2. Axios Request & Response Interceptors (`services/api.js`)
+#### 2. Refresh Token Rotation & Reuse Detection (`authService.refreshSession`)
+* **Rotation:** Every call to `POST /auth/refresh` retires the presented refresh token (`isRevoked = true`, `rotatedAt = now`) and issues a brand-new access + refresh token pair; the new refresh token replaces the cookie. A refresh token is therefore single-use, and an active session slides forward 7 days from its last refresh.
+* **Reuse (theft) detection:** A rotated token should never be presented again. If one is, someone else holds a copy of it, so the server:
+  1. revokes **every** active refresh token for that user (attacker and legitimate user are both logged out),
+  2. writes a `REFRESH_TOKEN_REUSE` entry to the audit log with the presenting IP address,
+  3. returns `401` asking the user to sign in again.
+* **Concurrency grace window (10 seconds):** Two tabs, or React StrictMode in development, can refresh with the same cookie at the same moment. The token is claimed with an atomic conditional update (`updateMany({ where: { id, isRevoked: false } })`), so exactly one request rotates it. A request that loses the race, or presents the just-rotated token within 10 seconds, receives a short-lived access token only, never a new refresh token, so even a replay inside the window cannot obtain a lasting session.
+* **Revoked vs. rotated:** Tokens revoked by logout, password change or account deactivation simply return `401` and do not trigger family revocation.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Legit as Legitimate Browser
+    participant Attacker
+    participant API as Express API (/auth/refresh)
+    participant DB as PostgreSQL
+
+    Legit->>API: refresh with token A
+    API->>DB: mark A revoked + rotatedAt
+    API-->>Legit: new access token + Set-Cookie token B
+    Attacker->>API: refresh with stolen token A
+    API->>DB: A already rotated: revoke all tokens for user (incl. B)
+    API->>DB: INSERT AuditLog REFRESH_TOKEN_REUSE (attacker IP)
+    API-->>Attacker: 401 Session invalidated
+```
+
+#### 3. Axios Request & Response Interceptors (`services/api.js`)
 * **Request Interceptor:** Automatically attaches `Authorization: Bearer <inMemoryToken>` to every outbound API request.
 * **Response Interceptor:** Detects `401 Unauthorized` responses on protected routes, pauses queued requests using a promise lock (`isRefreshing`), calls `POST /auth/refresh`, updates the in-memory token, and transparently replays the original requests.
 
-#### 3. Administrative Account Provisioning (No Public Registration)
+#### 4. Administrative Account Provisioning (No Public Registration)
 * **Implementation:** The `/api/v1/auth/register` endpoint is intentionally hard-coded to return `403 Forbidden`:
   ```javascript
   // server/src/routes/authRoutes.js
@@ -164,18 +190,18 @@ sequenceDiagram
     type: eq.question.type,
     text: eq.question.text,
     marks: eq.question.marks,
-    options: eq.question.options.map(opt => ({
-      id: opt.id,
-      text: opt.text
-      // isCorrect is EXCLUDED from payload!
-    })),
+    // Returns only { id, text } per option (isCorrect is EXCLUDED from payload!),
+    // shuffled per student for MCQ questions
+    options: formatOptionsForStudent(eq.question, `${examId}-${userId}`),
     selectedOptionId: studentAnswerMap[eq.question.id]?.selectedOptionId || null,
     textAnswer: studentAnswerMap[eq.question.id]?.textAnswer || null
   }));
   ```
 
 #### 2. Seeded Fisher-Yates Randomization
-* **Implementation:** Questions and options are shuffled per student attempt using a deterministic Fisher-Yates shuffle algorithm. The student's pre-seeded question order is persisted in `StudentAnswer.displayOrder` (1 through N), ensuring that refreshing the browser maintains their personalized shuffled order while preventing adjacent students from copying answers.
+* **Question order:** Questions are shuffled per student using a deterministic, seeded Fisher-Yates shuffle (seed: `examId-studentId`). The resulting order is persisted in `StudentAnswer.displayOrder` (1 through N) when the attempt starts, so refreshing the browser keeps the same order while adjacent students see different sequences.
+* **Option order (MCQ):** Answer options of each multiple-choice question are shuffled per student with the same algorithm (seed: `examId-studentId-questionId`, see `formatOptionsForStudent`). Options are sorted by `id` before shuffling because PostgreSQL does not guarantee row order, which keeps a student's option order stable across resumes. Because grading compares option IDs rather than positions, shuffling has no effect on scoring.
+* **True/False** questions keep their natural "True, False" order, since shuffling two options adds little protection and confuses students.
 
 #### 3. Real-Time Debounced Autosave (`ExamPlayer.jsx`)
 * **Implementation:** Answer selections trigger local React state immediately for instantaneous UI responsiveness (`setAnswers(...)`).
@@ -256,10 +282,10 @@ flowchart TD
   ```
 
 #### 3. Forensic Audit Trail Attribution
-* Every violation generates an immutable row in the `AuditLog` table containing:
+* Every violation generates an append-only row in the `AuditLog` table (see [Append-Only Enforcement](#3-append-only-enforcement-database-trigger)) containing:
   * `userId`: Authenticated student ID
   * `attemptId`: Current exam session ID
-  * `eventType`: `TAB_SWITCH` or `FULLSCREEN_EXIT`
+  * `eventType`: `TAB_SWITCH`, `FULLSCREEN_EXIT` or `WINDOW_BLUR`
   * `details`: Human-readable context and elapsed duration
   * `ipAddress`: Client IPv4/IPv6 address
   * `timestamp`: Precise UTC timestamp
@@ -386,23 +412,42 @@ Provide institutional administrators with total governance over accounts, securi
 * **Status Toggling:** When an admin toggles an account from active to deactivated:
   ```javascript
   // server/src/services/adminService.js
-  await prisma.$transaction([
-    prisma.user.update({ where: { id: userId }, data: { isActive } }),
-    prisma.refreshToken.updateMany({ where: { userId }, data: { isRevoked: true } })
-  ]);
+  await prisma.user.update({ where: { id: targetUserId }, data: { isActive: Boolean(isActive) } });
+
+  if (!isActive) {
+    await prisma.refreshToken.updateMany({
+      where: { userId: targetUserId, isRevoked: false },
+      data: { isRevoked: true }
+    });
+  }
   ```
-  Revoking the refresh tokens ensures the user is ejected from active sessions immediately upon their next token refresh cycle.
+  Revoking the refresh tokens ensures the user is ejected from active sessions on their next token refresh (at most 15 minutes, the access token lifetime). The change is recorded as a `USER_STATUS_CHANGE` audit event.
 * **Self-Deactivation Guard:** Frontend and backend reject deactivation requests if `targetUserId === currentAdminId`.
 
 #### 2. System Audit Log Explorer (`/admin/audit-logs`)
-* **Centralized Security Stream:** High-speed queries with pagination (`limit`, `offset`) and event type filtering:
-  * `LOGIN_SUCCESS` / `LOGIN_FAILURE`
-  * `2FA_VERIFIED`
-  * `EXAM_CREATED` / `EXAM_PUBLISHED` / `EXAM_DELETED`
-  * `VIOLATION_RECORDED`
-  * `EXAM_SUBMITTED` / `EXAM_AUTO_SUBMITTED`
-  * `USER_CREATED` / `USER_STATUS_TOGGLED`
+* **Centralized Security Stream:** Paginated queries (`limit`, `offset`) with event type filtering over the events the platform records:
+  * `OTP_VERIFY`: successful two-factor sign-in
+  * `TAB_SWITCH` / `FULLSCREEN_EXIT` / `WINDOW_BLUR`: proctoring violations
+  * `AUTO_SUBMIT`: attempt finalized by time expiry, violation limit, late submission or the background sweeper (reason in `details`)
+  * `USER_STATUS_CHANGE`: account activation/deactivation and password changes
+  * `REFRESH_TOKEN_REUSE`: a rotated refresh token was replayed; all of the user's sessions were revoked
 * **JSON Details Viewer:** Expandable accordion view parsing `details` payloads to display forensic event metadata.
+
+#### 3. Append-Only Enforcement (Database Trigger)
+* Audit rows can be inserted and read, but never changed or removed. This is enforced **inside PostgreSQL**, not just by the absence of an API endpoint (migration `20261005120000_audit_log_append_only`):
+  ```sql
+  CREATE TRIGGER "AuditLog_no_update_delete"
+  BEFORE UPDATE OR DELETE ON "AuditLog"
+  FOR EACH ROW EXECUTE FUNCTION audit_log_reject_modification();
+
+  -- TRUNCATE bypasses row-level triggers, so it is blocked separately
+  CREATE TRIGGER "AuditLog_no_truncate"
+  BEFORE TRUNCATE ON "AuditLog"
+  FOR EACH STATEMENT EXECUTE FUNCTION audit_log_reject_modification();
+  ```
+* Any `UPDATE`, `DELETE` or `TRUNCATE`, whether from the API, Prisma Studio or a raw SQL session, fails with `AuditLog is append-only: <operation> is not permitted`.
+* **Consequence:** users and exam attempts that have audit history cannot be hard-deleted (the `ON DELETE SET NULL` cascade is itself an update). Accounts are deactivated instead, which is already the platform's design.
+* **Limitation:** a database superuser or the table owner can still disable the trigger. A production deployment should connect the API as a dedicated role granted only `INSERT` and `SELECT` on `AuditLog`.
 
 ---
 
@@ -456,7 +501,7 @@ erDiagram
 | Table | Primary Key | Key Foreign Keys | Purpose |
 | :--- | :--- | :--- | :--- |
 | **`User`** | `id` (UUID) | - | User identities, BCrypt hashes, roles, batch cohorts |
-| **`RefreshToken`**| `id` (UUID) | `userId` → `User.id` | SHA-256 hashed 7-day refresh tokens |
+| **`RefreshToken`**| `id` (UUID) | `userId` → `User.id` | SHA-256 hashed 7-day refresh tokens; `rotatedAt` marks single-use tokens already exchanged (reuse detection) |
 | **`OtpCode`** | `id` (UUID) | `userId` → `User.id` | Hashed 6-digit 2FA codes with 10-minute expiry |
 | **`Exam`** | `id` (UUID) | `createdById` → `User.id` | Assessment schedule, duration, batch, max violations |
 | **`Question`** | `id` (UUID) | `createdBy` → `User.id` | Question bank items, formats, point weights |
@@ -464,7 +509,7 @@ erDiagram
 | **`ExamQuestion`**| Composite (`examId`, `questionId`) | `examId`, `questionId` | Many-to-many join table between Exams and Questions |
 | **`ExamAttempt`** | `id` (UUID) | `examId`, `studentId` | Attempt sessions, scores, status, violation counter |
 | **`StudentAnswer`**| `id` (UUID) | `attemptId`, `questionId` | Student selections, text answers, display order |
-| **`AuditLog`** | `id` (UUID) | `userId`, `attemptId` | Forensic event logs, IP addresses, incident timestamps |
+| **`AuditLog`** | `id` (UUID) | `userId`, `attemptId` | Forensic event logs, IP addresses, incident timestamps; append-only via database trigger |
 
 ---
 
@@ -474,11 +519,12 @@ This matrix provides a technical reference detailing how every major feature is 
 
 | Feature | Frontend Implementation | Backend API & Service | Database Mechanism | Security & Integrity Control |
 | :--- | :--- | :--- | :--- | :--- |
-| **Authentication & 2FA** | `Login.jsx`, `AuthContext.jsx` with in-memory token state | `POST /auth/login`<br/>`POST /auth/verify-otp`<br/>`authService.js` | `User`, `OtpCode`, `RefreshToken` | Access tokens in JS memory only; refresh token in `HttpOnly, SameSite=Strict` cookie |
+| **Authentication & 2FA** | `Login.jsx`, `AuthContext.jsx` with in-memory token state | `POST /auth/login`<br/>`POST /auth/verify-otp`<br/>`authService.js` | `User`, `OtpCode`, `RefreshToken` | Access tokens in JS memory only; refresh token in `HttpOnly` cookie (`SameSite=Strict` + `Secure` in production) |
+| **Refresh Token Rotation** | `services/api.js` interceptor (transparent to the user) | `POST /auth/refresh`<br/>`authService.refreshSession` | `RefreshToken.isRevoked`, `RefreshToken.rotatedAt` | Single-use refresh tokens; replaying a rotated token revokes all of the user's sessions and logs `REFRESH_TOKEN_REUSE` |
 | **Public Registration Block** | N/A (Admin only) | `POST /auth/register`<br/>Returns explicit `403 Forbidden` | N/A | Fails closed; prevents unauthorized account creation |
 | **Student Dashboard** | `StudentDashboard.jsx` with tabs for Available, Upcoming, Completed | `GET /exams`<br/>`examService.listExams` | `Exam` filtered by `targetBatch = user.batch` | Cohort isolation; students cannot see exams outside their batch |
 | **Pre-Flight Briefing** | `ExamBriefing.jsx` with resolution and Fullscreen API checks | `GET /exams/:id`<br/>`examService.getExamById` | `Exam` joined with `createdById` | Questions remain completely hidden until explicit exam start |
-| **Live Exam Player** | `ExamPlayer.jsx` with question palette grid and hotkeys | `POST /exams/:id/start`<br/>`examService.startExam` | `ExamAttempt`, `StudentAnswer` | Payload strips all `isCorrect` keys; Fisher-Yates per-attempt question shuffling |
+| **Live Exam Player** | `ExamPlayer.jsx` with question palette grid and hotkeys | `POST /exams/:id/start`<br/>`examService.startExam` | `ExamAttempt`, `StudentAnswer` | Payload strips all `isCorrect` keys; seeded Fisher-Yates shuffling of question order and MCQ option order per student |
 | **Debounced Autosave** | `ExamPlayer.jsx` with 300ms debounce buffer | `PATCH /attempts/:id/answer`<br/>`examService.saveAnswer` | `StudentAnswer` upsert on `(attemptId, questionId)` | Checks attempt status is `IN_PROGRESS` and deadline has not expired |
 | **Anti-Cheat Watchdog** | `useProctoring.js` (`fullscreenchange`, `visibilitychange`, `blur`) | `POST /violations`<br/>`examService.recordViolation` | Atomic update: `violationCount: { increment: 1 }` | Auto-submits exam when `violationCount >= maxViolations`; logs client IP |
 | **Automatic Deadline Sweeper** | N/A (Server background daemon) | `setInterval` in `server.js` calling `autoSubmitExpiredAttempts` | `ExamAttempt` status update to `AUTO_SUBMITTED` | Auto-finalizes expired attempts every 30s even if student is disconnected |
@@ -488,5 +534,5 @@ This matrix provides a technical reference detailing how every major feature is 
 | **Class Submissions Review** | `ExamSubmissions.jsx` candidate table with metrics | `GET /exams/:id/attempts`<br/>`examService.getExamSubmissions` | `ExamAttempt` joined with `student` | Restricted to `FACULTY` author or `ADMIN` role |
 | **Candidate Audit Inspector** | `AttemptInspectorModal.jsx` side-by-side comparison | `GET /attempts/:id`<br/>`examService.getAttemptDetails` | `StudentAnswer`, `Option`, `AuditLog` | Displays student selection vs official key and proctoring forensic logs |
 | **User Management** | `UserManagement.jsx` with live status toggling | `GET /admin/users`<br/>`PATCH /users/:id/status`<br/>`adminService.js` | `User.isActive` update; revokes `RefreshToken` | Self-deactivation guard; revoking refresh tokens kills active sessions |
-| **Audit Log Explorer** | `AuditLogExplorer.jsx` with event category filtering | `GET /admin/audit-logs`<br/>`adminService.getAuditLogs` | `AuditLog` table with IP, timestamp, details | Immutable forensic log of all critical platform and proctoring incidents |
+| **Audit Log Explorer** | `AuditLogExplorer.jsx` with event category filtering | `GET /admin/audit-logs`<br/>`adminService.getAuditLogs` | `AuditLog` table with IP, timestamp, details; PostgreSQL trigger blocks `UPDATE`/`DELETE`/`TRUNCATE` | Append-only forensic log of authentication, account, token-reuse and proctoring incidents |
 | **Standalone Showcase** | `frontend-demo/` with `DemoBar.jsx` role switcher | In-memory mock adapter (`services/api.js`) | `localStorage` state persistence | 100% decoupled from backend; runs on port 5174 for clean presentations |
