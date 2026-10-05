@@ -65,6 +65,7 @@ const AuditLogExplorer = () => {
       case 'TAB_SWITCH':
       case 'FULLSCREEN_EXIT':
       case 'WINDOW_BLUR':
+      case 'REFRESH_TOKEN_REUSE':
         return 'bg-rose-500/10 text-rose-400 border-rose-500/20';
       case 'AUTO_SUBMIT':
         return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
@@ -159,7 +160,8 @@ const AuditLogExplorer = () => {
             { id: 'TAB_SWITCH', label: 'Tab Switches' },
             { id: 'FULLSCREEN_EXIT', label: 'Fullscreen Loss' },
             { id: 'OTP_VERIFY', label: '2FA Verifications' },
-            { id: 'USER_STATUS_CHANGE', label: 'Status Changes' }
+            { id: 'USER_STATUS_CHANGE', label: 'Status Changes' },
+            { id: 'REFRESH_TOKEN_REUSE', label: 'Token Reuse' }
           ].map((type) => (
             <button
               key={type.id}

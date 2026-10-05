@@ -8,6 +8,10 @@ import nodemailer from 'nodemailer';
 
 const SALT_ROUNDS = 12;
 
+// Window in which a just-rotated refresh token is still accepted, to absorb
+// concurrent refreshes from the same browser (multiple tabs, React StrictMode)
+const REFRESH_REUSE_GRACE_MS = 10 * 1000;
+
 let mailTransporter = null;
 
 const getTransporter = () => {
@@ -123,12 +127,13 @@ export const issueTokens = async (user) => {
   );
 
   // 2. Generate longer-lived Refresh Token (7 days)
+  // Unique jwtid guarantees a distinct token (and hash) even when two are issued in the same second
   const refreshToken = jwt.sign(
     {
       userId: user.id
     },
     env.JWT_REFRESH_SECRET,
-    { expiresIn: env.JWT_REFRESH_EXPIRES_IN || '7d' }
+    { expiresIn: env.JWT_REFRESH_EXPIRES_IN || '7d', jwtid: crypto.randomUUID() }
   );
 
   // 3. Hash refresh token with SHA-256 for secure database storage
@@ -305,9 +310,12 @@ export const resendOtp = async ({ tempToken }) => {
 
 
 /**
- * Validate refresh token from cookie, check DB hash/revocation/expiry, and issue fresh access token
+ * Validate refresh token from cookie, check DB hash/revocation/expiry, and rotate it:
+ * the presented token is retired and a new access + refresh token pair is issued.
+ * Presenting an already-rotated token again (outside a short grace window) is treated
+ * as theft: every session for that user is revoked.
  */
-export const refreshSession = async (refreshToken) => {
+export const refreshSession = async (refreshToken, ipAddress) => {
   if (!refreshToken) {
     const error = new Error('Refresh token is required');
     error.statusCode = 401;
@@ -339,7 +347,36 @@ export const refreshSession = async (refreshToken) => {
     throw error;
   }
 
-  if (storedToken.isRevoked) {
+  // 4. Reuse detection: a rotated token should never be presented again
+  const isRotated = storedToken.isRevoked && storedToken.rotatedAt;
+  const withinGrace = isRotated && Date.now() - storedToken.rotatedAt.getTime() < REFRESH_REUSE_GRACE_MS;
+
+  if (isRotated && !withinGrace) {
+    await prisma.refreshToken.updateMany({
+      where: { userId: storedToken.userId, isRevoked: false },
+      data: { isRevoked: true }
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: storedToken.userId,
+        eventType: 'REFRESH_TOKEN_REUSE',
+        details: JSON.stringify({
+          reason: 'Rotated refresh token presented again; all sessions revoked',
+          tokenId: storedToken.id,
+          rotatedAt: storedToken.rotatedAt
+        }),
+        ipAddress: ipAddress || null
+      }
+    });
+
+    const error = new Error('Session invalidated for security reasons. Please log in again.');
+    error.statusCode = 401;
+    throw error;
+  }
+
+  // Revoked by logout, password change or deactivation
+  if (storedToken.isRevoked && !withinGrace) {
     const error = new Error('Refresh token has been revoked');
     error.statusCode = 401;
     throw error;
@@ -357,7 +394,21 @@ export const refreshSession = async (refreshToken) => {
     throw error;
   }
 
-  // 4. Issue fresh short-lived Access Token (15 min) with { userId, role, batch }
+  // 5. Atomically claim the token for rotation. Only one concurrent request can win;
+  // a request that loses the race (or arrives within the grace window) gets an access
+  // token only, since the winner's response already set the new refresh cookie.
+  const claimed = withinGrace
+    ? { count: 0 }
+    : await prisma.refreshToken.updateMany({
+        where: { id: storedToken.id, isRevoked: false },
+        data: { isRevoked: true, rotatedAt: new Date() }
+      });
+
+  if (claimed.count === 1) {
+    return issueTokens(storedToken.user);
+  }
+
+  // 6. Issue fresh short-lived Access Token (15 min) with { userId, role, batch }
   const newAccessToken = jwt.sign(
     {
       userId: storedToken.user.id,
@@ -370,6 +421,7 @@ export const refreshSession = async (refreshToken) => {
 
   return {
     accessToken: newAccessToken,
+    refreshToken: null,
     user: {
       id: storedToken.user.id,
       name: storedToken.user.name,

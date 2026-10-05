@@ -60,6 +60,7 @@ model RefreshToken {
   userId     String
   tokenHash  String
   isRevoked  Boolean  @default(false)
+  rotatedAt  DateTime? // Set when exchanged for a new token; presenting it again signals reuse
   expiresAt  DateTime
   createdAt  DateTime @default(now())
 
@@ -149,6 +150,8 @@ model StudentAnswer {
   @@unique([attemptId, questionId])
 }
 
+// Append-only: a database trigger rejects UPDATE, DELETE and TRUNCATE on this table
+// (see migration 20261005120000_audit_log_append_only)
 model AuditLog {
   id        String       @id @default(uuid())
   userId    String?

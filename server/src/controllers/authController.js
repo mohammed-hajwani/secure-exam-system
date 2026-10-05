@@ -91,12 +91,19 @@ export const resendOtp = async (req, res, next) => {
 };
 
 /**
- * Refresh access token using HttpOnly refresh token cookie: POST /api/v1/auth/refresh
+ * Refresh access token and rotate the HttpOnly refresh token cookie: POST /api/v1/auth/refresh
  */
 export const refresh = async (req, res, next) => {
   try {
-    const refreshToken = req.cookies?.refreshToken;
-    const { accessToken, user } = await authService.refreshSession(refreshToken);
+    const { accessToken, refreshToken, user } = await authService.refreshSession(
+      req.cookies?.refreshToken,
+      req.ip
+    );
+
+    // Rotated: replace the cookie with the newly issued refresh token
+    if (refreshToken) {
+      res.cookie('refreshToken', refreshToken, cookieOptions);
+    }
 
     return res.status(200).json({
       success: true,
