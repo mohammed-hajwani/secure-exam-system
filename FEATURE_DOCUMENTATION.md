@@ -13,9 +13,8 @@
 5. [Automatic Deadline Sweeper Daemon](#5-automatic-deadline-sweeper-daemon)
 6. [Faculty Authoring & Evaluation Suite](#6-faculty-authoring--evaluation-suite)
 7. [Administrator Governance & Audit Engine](#7-administrator-governance--audit-engine)
-8. [Standalone Showcase Suite (`frontend-demo`)](#8-standalone-showcase-suite)
-9. [Database Schema & Entity Relationships](#9-database-schema--entity-relationships)
-10. [Engineering Implementation Matrix (Feature-by-Feature)](#10-engineering-implementation-matrix)
+8. [Database Schema & Entity Relationships](#8-database-schema--entity-relationships)
+9. [Engineering Implementation Matrix (Feature-by-Feature)](#9-engineering-implementation-matrix)
 
 ---
 
@@ -451,30 +450,7 @@ Provide institutional administrators with total governance over accounts, securi
 
 ---
 
-## 8. Standalone Showcase Suite (`frontend-demo`)
-
-### Feature Objective
-Allow instantaneous demonstration, UI review, and stakeholder presentations without requiring backend services, PostgreSQL, or SMTP configurations.
-
-### Technical Implementation
-
-#### 1. In-Memory Mock API Adapter (`frontend-demo/src/services/api.js`)
-* Replaces the Axios network transport with an in-memory stateful router.
-* Simulates natural network latency (120ms) using `setTimeout`.
-* Implements full state persistence in `localStorage`:
-  * Submitting an exam updates the attempt state.
-  * Adding a question in the Question Bank adds it to the mock store.
-  * Toggling a user's active status updates the User Directory.
-
-#### 2. Top Showcase Navigator (`DemoBar.jsx`)
-* **Instant Role Switcher:** Modifies the mock user session in `AuthContext` with a single click, instantly switching between `STUDENT`, `FACULTY`, and `ADMIN`.
-* **Jump to Page Dropdown:** Direct programmatic routing to any screen across all three portals.
-* **Hide Bar:** Collapses into a minimal floating bubble in the bottom corner for clean, presentation-ready screenshots.
-* **Reset Data:** Flushes `localStorage` and restores pre-seeded sample data (`mockData.js`).
-
----
-
-## 9. Database Schema & Entity Relationships
+## 8. Database Schema & Entity Relationships
 
 ```mermaid
 erDiagram
@@ -513,7 +489,7 @@ erDiagram
 
 ---
 
-## 10. Engineering Implementation Matrix
+## 9. Engineering Implementation Matrix
 
 This matrix provides a technical reference detailing how every major feature is implemented across the stack:
 
@@ -535,4 +511,3 @@ This matrix provides a technical reference detailing how every major feature is 
 | **Candidate Audit Inspector** | `AttemptInspectorModal.jsx` side-by-side comparison | `GET /attempts/:id`<br/>`examService.getAttemptDetails` | `StudentAnswer`, `Option`, `AuditLog` | Displays student selection vs official key and proctoring forensic logs |
 | **User Management** | `UserManagement.jsx` with live status toggling | `GET /admin/users`<br/>`PATCH /users/:id/status`<br/>`adminService.js` | `User.isActive` update; revokes `RefreshToken` | Self-deactivation guard; revoking refresh tokens kills active sessions |
 | **Audit Log Explorer** | `AuditLogExplorer.jsx` with event category filtering | `GET /admin/audit-logs`<br/>`adminService.getAuditLogs` | `AuditLog` table with IP, timestamp, details; PostgreSQL trigger blocks `UPDATE`/`DELETE`/`TRUNCATE` | Append-only forensic log of authentication, account, token-reuse and proctoring incidents |
-| **Standalone Showcase** | `frontend-demo/` with `DemoBar.jsx` role switcher | In-memory mock adapter (`services/api.js`) | `localStorage` state persistence | 100% decoupled from backend; runs on port 5174 for clean presentations |
