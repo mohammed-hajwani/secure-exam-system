@@ -30,6 +30,23 @@ function shuffleArrayWithSeed(array, seedString) {
 }
 
 /**
+ * Student-facing options for a question, without isCorrect.
+ * MCQ options are shuffled per student and question (stable across resumes);
+ * True/False keeps its natural order. Options are sorted by id first because
+ * the database does not guarantee row order, and the seeded shuffle needs a fixed input.
+ */
+function formatOptionsForStudent(question, seedPrefix) {
+  const options = question.options.map((opt) => ({ id: opt.id, text: opt.text }));
+
+  if (question.type !== 'MCQ') {
+    return options;
+  }
+
+  options.sort((a, b) => a.id.localeCompare(b.id));
+  return shuffleArrayWithSeed(options, `${seedPrefix}-${question.id}`);
+}
+
+/**
  * Shared helper function to auto-grade objective questions and finalize an exam attempt
  */
 export const executeExamSubmission = async ({ attemptId, status = 'SUBMITTED', isFlagged = false }) => {
@@ -524,10 +541,7 @@ export const startExam = async ({ id, userId, role, batch, ipAddress }) => {
         type: ans.question.type,
         text: ans.question.text,
         marks: ans.question.marks,
-        options: ans.question.options.map((opt) => ({
-          id: opt.id,
-          text: opt.text
-        })),
+        options: formatOptionsForStudent(ans.question, `${id}-${userId}`),
         selectedOptionId: ans.selectedOptionId || null,
         textAnswer: ans.textAnswer || null
       }));
@@ -541,10 +555,7 @@ export const startExam = async ({ id, userId, role, batch, ipAddress }) => {
         type: eq.question.type,
         text: eq.question.text,
         marks: eq.question.marks,
-        options: eq.question.options.map((opt) => ({
-          id: opt.id,
-          text: opt.text
-        })),
+        options: formatOptionsForStudent(eq.question, `${id}-${userId}`),
         selectedOptionId: null,
         textAnswer: null
       }));
@@ -597,10 +608,7 @@ export const startExam = async ({ id, userId, role, batch, ipAddress }) => {
     type: eq.question.type,
     text: eq.question.text,
     marks: eq.question.marks,
-    options: eq.question.options.map((opt) => ({
-      id: opt.id,
-      text: opt.text
-    })),
+    options: formatOptionsForStudent(eq.question, `${id}-${userId}`),
     selectedOptionId: null,
     textAnswer: null
   }));
