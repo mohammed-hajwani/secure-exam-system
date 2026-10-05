@@ -567,6 +567,7 @@ export const startExam = async ({ id, userId, role, batch, ipAddress }) => {
       startedAt: existingAttempt.startedAt,
       durationMinutes: exam.durationMinutes,
       remainingSeconds,
+      maxViolations: exam.maxViolations,
       violationCount: existingAttempt.violationCount,
       questions: studentQuestions
     };
@@ -619,6 +620,7 @@ export const startExam = async ({ id, userId, role, batch, ipAddress }) => {
     startedAt: newAttempt.startedAt,
     durationMinutes: exam.durationMinutes,
     remainingSeconds,
+    maxViolations: exam.maxViolations,
     violationCount: newAttempt.violationCount,
     questions: studentQuestions
   };
