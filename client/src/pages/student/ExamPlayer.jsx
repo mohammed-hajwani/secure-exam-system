@@ -31,7 +31,17 @@ const ExamPlayer = () => {
   // Local answer tracking & flags
   const [answers, setAnswers] = useState({}); // { [questionId]: { selectedOptionId, textAnswer } }
   const [flaggedQuestions, setFlaggedQuestions] = useState(new Set());
-  const [saveStatus, setSaveStatus] = useState('saved'); // 'saving' | 'saved' | 'error'
+  const [saveStatus, setSaveStatus] = useState('saved'); // 'saving' | 'saved' | 'retrying' | 'error'
+
+  // Answer save queue (see queueSave / flushSave below)
+  const pendingSavesRef = useRef(new Map()); // questionId -> latest payload not yet sent
+  const inFlightSavesRef = useRef(new Set()); // questionIds with a request in progress
+  const saveTimersRef = useRef(new Map()); // questionId -> debounce or retry timer
+  const retryCountsRef = useRef(new Map()); // questionId -> consecutive failed attempts
+  const failedSavesRef = useRef(new Set()); // questionIds whose last save failed
+  // Refs, not state, because timers and the unmount cleanup run with stale closures
+  const attemptIdRef = useRef(null);
+  const isUnmountedRef = useRef(false);
 
   // Time tracking
   const [remainingSeconds, setRemainingSeconds] = useState(0);
@@ -40,6 +50,7 @@ const ExamPlayer = () => {
   // Modals
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   // Auto-submitted callback
   const handleAutoSubmitted = useCallback(() => {
@@ -80,6 +91,7 @@ const ExamPlayer = () => {
 
         if (!isMounted) return;
 
+        attemptIdRef.current = data.attemptId;
         setAttempt(data);
         setQuestions(data.questions || []);
         setRemainingSeconds(data.remainingSeconds || 0);
@@ -140,6 +152,8 @@ const ExamPlayer = () => {
   const handleTimeExpiredSubmission = async () => {
     try {
       setIsSubmitting(true);
+      // Best effort: send queued answers before the server finalizes the attempt
+      await flushAllSaves();
       await api.post(`/exams/${id}/attempts/${attempt.attemptId}/submit`);
     } catch (err) {
       console.warn('Timer submit response:', err.message);
@@ -160,8 +174,106 @@ const ExamPlayer = () => {
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  // Auto-save student answer
-  const handleAnswerSelect = async (questionId, selectedOptionId, textAnswer = null) => {
+  const TEXT_SAVE_DEBOUNCE_MS = 600;
+  const MAX_RETRY_DELAY_MS = 15000;
+
+  const refreshSaveStatus = () => {
+    if (failedSavesRef.current.size > 0) {
+      setSaveStatus(pendingSavesRef.current.size > 0 ? 'retrying' : 'error');
+    } else if (pendingSavesRef.current.size > 0 || inFlightSavesRef.current.size > 0) {
+      setSaveStatus('saving');
+    } else {
+      setSaveStatus('saved');
+    }
+  };
+
+  // Send the latest queued value for a question. Only one request per question is
+  // in flight at a time, so responses can never arrive out of order and overwrite
+  // a newer answer with an older one.
+  const flushSave = async (questionId) => {
+    clearTimeout(saveTimersRef.current.get(questionId));
+    saveTimersRef.current.delete(questionId);
+
+    // Already saving: the finally block below sends the newest value afterwards
+    if (inFlightSavesRef.current.has(questionId)) return;
+
+    const payload = pendingSavesRef.current.get(questionId);
+    if (!payload) return;
+
+    pendingSavesRef.current.delete(questionId);
+    inFlightSavesRef.current.add(questionId);
+    refreshSaveStatus();
+
+    try {
+      await api.patch(`/exams/${id}/attempts/${attemptIdRef.current}/answer`, {
+        questionId,
+        ...payload
+      });
+      failedSavesRef.current.delete(questionId);
+      retryCountsRef.current.delete(questionId);
+    } catch (err) {
+      console.error('Auto-save error:', err);
+      failedSavesRef.current.add(questionId);
+
+      // Retry network errors, server errors and rate limiting; a 4xx such as
+      // "exam already submitted" will not succeed by retrying
+      const status = err.response?.status;
+      const isRetryable = !err.response || status >= 500 || status === 429;
+
+      if (isRetryable && !isUnmountedRef.current) {
+        if (!pendingSavesRef.current.has(questionId)) {
+          pendingSavesRef.current.set(questionId, payload);
+        }
+        const attemptNumber = (retryCountsRef.current.get(questionId) || 0) + 1;
+        retryCountsRef.current.set(questionId, attemptNumber);
+        const delay = Math.min(1000 * 2 ** attemptNumber, MAX_RETRY_DELAY_MS);
+        saveTimersRef.current.set(questionId, setTimeout(() => flushSave(questionId), delay));
+      }
+    } finally {
+      inFlightSavesRef.current.delete(questionId);
+      // A newer value arrived while saving and its timer has already fired
+      if (pendingSavesRef.current.has(questionId) && !saveTimersRef.current.has(questionId)) {
+        flushSave(questionId);
+      }
+      if (!isUnmountedRef.current) refreshSaveStatus();
+    }
+  };
+
+  const queueSave = (questionId, payload, delayMs) => {
+    pendingSavesRef.current.set(questionId, payload);
+    retryCountsRef.current.delete(questionId);
+    clearTimeout(saveTimersRef.current.get(questionId));
+    saveTimersRef.current.set(questionId, setTimeout(() => flushSave(questionId), delayMs));
+    refreshSaveStatus();
+  };
+
+  // Send every queued answer now and wait for in-flight requests (up to 10s).
+  // Returns true when nothing is left unsaved.
+  const flushAllSaves = async () => {
+    [...pendingSavesRef.current.keys()].forEach((questionId) => flushSave(questionId));
+
+    const deadline = Date.now() + 10000;
+    while (inFlightSavesRef.current.size > 0 && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    return pendingSavesRef.current.size === 0 && inFlightSavesRef.current.size === 0;
+  };
+
+  // On leaving the page, cancel timers and send anything still queued (no retries)
+  useEffect(() => {
+    isUnmountedRef.current = false;
+    const timers = saveTimersRef.current;
+    const pending = pendingSavesRef.current;
+    return () => {
+      isUnmountedRef.current = true;
+      timers.forEach((timer) => clearTimeout(timer));
+      timers.clear();
+      [...pending.keys()].forEach((questionId) => flushSave(questionId));
+    };
+  }, []);
+
+  // Auto-save student answer: option clicks save immediately, typing is debounced
+  const handleAnswerSelect = (questionId, selectedOptionId, textAnswer = null) => {
     const updated = {
       selectedOptionId,
       textAnswer
@@ -172,18 +284,7 @@ const ExamPlayer = () => {
       [questionId]: updated
     }));
 
-    try {
-      setSaveStatus('saving');
-      await api.patch(`/exams/${id}/attempts/${attempt.attemptId}/answer`, {
-        questionId,
-        selectedOptionId,
-        textAnswer
-      });
-      setSaveStatus('saved');
-    } catch (err) {
-      console.error('Auto-save error:', err);
-      setSaveStatus('error');
-    }
+    queueSave(questionId, updated, textAnswer !== null ? TEXT_SAVE_DEBOUNCE_MS : 0);
   };
 
   const toggleFlag = (questionId) => {
@@ -199,15 +300,27 @@ const ExamPlayer = () => {
   };
 
   const handleSubmitExam = async () => {
+    setSubmitError('');
+    setIsSubmitting(true);
+
+    // Never submit while answers are still unsaved; the student can retry
+    const allSaved = await flushAllSaves();
+    if (!allSaved) {
+      const unsaved = pendingSavesRef.current.size + inFlightSavesRef.current.size;
+      setSubmitError(
+        `${unsaved} answer${unsaved === 1 ? '' : 's'} could not be saved yet. Check your connection and try again.`
+      );
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
-      setIsSubmitting(true);
       await api.post(`/exams/${id}/attempts/${attempt.attemptId}/submit`);
       await exitFullscreen();
       navigate(`/student/exams/${id}/result`);
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to submit exam');
+      setSubmitError(err.response?.data?.error || 'Failed to submit exam. Please try again.');
       setIsSubmitting(false);
-      setIsSubmitModalOpen(false);
     }
   };
 
@@ -368,6 +481,8 @@ const ExamPlayer = () => {
                       'Saving...'
                     ) : saveStatus === 'saved' ? (
                       'Saved'
+                    ) : saveStatus === 'retrying' ? (
+                      <span className="text-amber-400">Not saved, retrying...</span>
                     ) : (
                       <span className="text-rose-400">Save error</span>
                     )}
@@ -616,13 +731,23 @@ const ExamPlayer = () => {
                   Notice: You have {flaggedQuestions.size} question{flaggedQuestions.size > 1 ? 's' : ''} marked for review.
                 </p>
               )}
+
+              {submitError && (
+                <p className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-[11px] flex items-start gap-2">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px" />
+                  <span>{submitError}</span>
+                </p>
+              )}
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-1">
               <button
                 type="button"
                 disabled={isSubmitting}
-                onClick={() => setIsSubmitModalOpen(false)}
+                onClick={() => {
+                  setIsSubmitModalOpen(false);
+                  setSubmitError('');
+                }}
                 className="px-3.5 py-1.5 bg-zinc-850 hover:bg-zinc-800 text-zinc-300 text-xs font-medium rounded-lg transition cursor-pointer"
               >
                 Back
