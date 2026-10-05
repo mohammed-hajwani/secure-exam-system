@@ -126,6 +126,7 @@ sequenceDiagram
 #### 3. Axios Request & Response Interceptors (`services/api.js`)
 * **Request Interceptor:** Automatically attaches `Authorization: Bearer <inMemoryToken>` to every outbound API request.
 * **Response Interceptor:** Detects `401 Unauthorized` responses on protected routes, pauses queued requests using a promise lock (`isRefreshing`), calls `POST /auth/refresh`, updates the in-memory token, and transparently replays the original requests.
+* **Session-Expired Handling:** If the refresh itself is rejected (`401`/`403`: logged out elsewhere, password changed, account deactivated, or refresh token reuse detected), the interceptor notifies `AuthContext` via `setOnSessionExpired`. The user is cleared, route guards redirect to `/login`, and the login page shows "Your session has ended. Please sign in again." Network errors do not end the session.
 
 #### 4. Administrative Account Provisioning (No Public Registration)
 * **Implementation:** The `/api/v1/auth/register` endpoint is intentionally hard-coded to return `403 Forbidden`:
@@ -204,11 +205,12 @@ sequenceDiagram
 
 #### 3. Real-Time Debounced Autosave (`ExamPlayer.jsx`)
 * **Implementation:** Answer selections trigger local React state immediately for instantaneous UI responsiveness (`setAnswers(...)`).
-* In the background, a debounced handler dispatches `PATCH /api/v1/exams/:examId/attempts/:attemptId/answer` after a 300ms idle window.
-* A status pill transitions dynamically:
-  * `[Saving...]` (amber pulse) during network flight.
-  * `[All changes saved]` (emerald checkmark) on HTTP 200 confirmation.
-* If a network error occurs, answers remain cached in local component state and retry upon reconnection.
+* In the background, a per-question save queue dispatches `PATCH /api/v1/exams/:examId/attempts/:attemptId/answer`:
+  * **Option clicks** are saved immediately; **typed short answers** are debounced and saved after 600ms without typing, so a sentence produces one request instead of one per keystroke.
+  * **At most one request per question is in flight.** Changes made during a save are queued and sent when it finishes, always with the newest value, so out-of-order responses can never overwrite a newer answer with an older one.
+  * **Failed saves are retried** with exponential backoff (2s, 4s, 8s, up to 15s) on network errors, `5xx` and `429`. Errors that retrying cannot fix (e.g. exam already submitted) are not retried.
+* A status label reflects the queue: `Saving...`, `Saved`, `Not saved, retrying...` (amber) or `Save error` (red).
+* **Submission never drops answers silently:** before submitting, all queued answers are sent and in-flight saves awaited. If any remain unsaved, submission is blocked and the confirmation dialog shows how many answers could not be saved. When the timer expires, queued answers are sent on a best-effort basis before the auto-submit.
 
 #### 4. Monospace Countdown Timer Backed by Server Clock
 * **Implementation:** The client timer does not run on arbitrary client clocks. Upon starting, the server returns `remainingSeconds = Math.max(0, Math.floor((effectiveDeadline - Date.now()) / 1000))`.
@@ -501,7 +503,7 @@ This matrix provides a technical reference detailing how every major feature is 
 | **Student Dashboard** | `StudentDashboard.jsx` with tabs for Available, Upcoming, Completed | `GET /exams`<br/>`examService.listExams` | `Exam` filtered by `targetBatch = user.batch` | Cohort isolation; students cannot see exams outside their batch |
 | **Pre-Flight Briefing** | `ExamBriefing.jsx` with resolution and Fullscreen API checks | `GET /exams/:id`<br/>`examService.getExamById` | `Exam` joined with `createdById` | Questions remain completely hidden until explicit exam start |
 | **Live Exam Player** | `ExamPlayer.jsx` with question palette grid and hotkeys | `POST /exams/:id/start`<br/>`examService.startExam` | `ExamAttempt`, `StudentAnswer` | Payload strips all `isCorrect` keys; seeded Fisher-Yates shuffling of question order and MCQ option order per student |
-| **Debounced Autosave** | `ExamPlayer.jsx` with 300ms debounce buffer | `PATCH /attempts/:id/answer`<br/>`examService.saveAnswer` | `StudentAnswer` upsert on `(attemptId, questionId)` | Checks attempt status is `IN_PROGRESS` and deadline has not expired |
+| **Debounced Autosave** | `ExamPlayer.jsx` per-question save queue (600ms typing debounce, one request in flight, retry with backoff) | `PATCH /attempts/:id/answer`<br/>`examService.saveAnswer` | `StudentAnswer` upsert on `(attemptId, questionId)` | Checks attempt status is `IN_PROGRESS` and deadline has not expired |
 | **Anti-Cheat Watchdog** | `useProctoring.js` (`fullscreenchange`, `visibilitychange`, `blur`) | `POST /violations`<br/>`examService.recordViolation` | Atomic update: `violationCount: { increment: 1 }` | Auto-submits exam when `violationCount >= maxViolations`; logs client IP |
 | **Automatic Deadline Sweeper** | N/A (Server background daemon) | `setInterval` in `server.js` calling `autoSubmitExpiredAttempts` | `ExamAttempt` status update to `AUTO_SUBMITTED` | Auto-finalizes expired attempts every 30s even if student is disconnected |
 | **Exam Scorecard** | `ExamResult.jsx` with score breakdown & integrity badge | `GET /exams/:id/my-attempt`<br/>`examService.getMyAttempt` | `ExamAttempt` joined with `Exam` | IDOR prevention: verifies attempt belongs to authenticated student |
