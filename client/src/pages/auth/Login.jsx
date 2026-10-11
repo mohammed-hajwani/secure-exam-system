@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Shield, Lock, Mail, AlertCircle, Loader2, KeyRound, ArrowLeft, RefreshCw, CheckCircle2 } from 'lucide-react';
-
+import { ArrowLeft, Mail, RefreshCw } from 'lucide-react';
+import { Alert, Button, Field, Input } from '../../components/ui';
+import { Wordmark } from '../../components/layout/Navbar';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -24,7 +25,7 @@ const Login = () => {
     setInfoMessage('');
 
     if (!email.trim() || !password) {
-      setError('Please enter both email and password.');
+      setError('Enter both your email and your password.');
       return;
     }
 
@@ -34,7 +35,7 @@ const Login = () => {
       if (result?.requiresOtp) {
         setTempToken(result.tempToken);
         setStep('otp');
-        setInfoMessage('A 6-digit verification code has been dispatched to your email.');
+        setInfoMessage(`We sent a 6-digit code to ${email.trim()}. It expires in 10 minutes.`);
       } else {
         navigate('/dashboard');
       }
@@ -51,7 +52,7 @@ const Login = () => {
     setInfoMessage('');
 
     if (!otp.trim() || otp.trim().length !== 6) {
-      setError('Please enter the 6-digit code received in your email.');
+      setError('Enter the 6-digit code from your email.');
       return;
     }
 
@@ -60,7 +61,7 @@ const Login = () => {
       await verifyOtp(tempToken, otp.trim());
       navigate('/dashboard');
     } catch (err) {
-      setError(err.message || 'Verification failed. Please check the code.');
+      setError(err.message || 'That code did not work. Check it and try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -75,169 +76,131 @@ const Login = () => {
       if (res?.tempToken) {
         setTempToken(res.tempToken);
       }
-      setInfoMessage('A fresh verification code has been dispatched to your email.');
+      setInfoMessage('A new code is on its way. Earlier codes no longer work.');
     } catch (err) {
-      setError(err.message || 'Failed to resend verification code.');
+      setError(err.message || 'Could not send a new code. Sign in again.');
     } finally {
       setIsResending(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-zinc-950 px-4 py-12 text-zinc-100">
-      <div className="w-full max-w-sm bg-zinc-900/90 border border-zinc-800/90 rounded-2xl p-7 shadow-xl">
-        <div className="flex flex-col items-center text-center mb-6">
-          <div className="w-10 h-10 rounded-xl bg-zinc-800 border border-zinc-700/80 flex items-center justify-center text-zinc-100 mb-3 shadow-sm">
-            <Shield className="w-5 h-5 text-zinc-200" />
-          </div>
-          <h1 className="text-xl font-semibold tracking-tight text-zinc-100">
-            ExamShield
-          </h1>
-          <p className="text-xs text-zinc-400 mt-1">
-            {step === 'otp' ? 'Enter 2FA security code' : 'Sign in to your examination portal'}
-          </p>
-        </div>
+    <div className="felt flex min-h-screen flex-col">
+      <header className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        <Wordmark to="/" />
+        <Link to="/" className="text-sm font-semibold text-board-ink transition-colors hover:text-white">
+          About ExamShield
+        </Link>
+      </header>
 
-        {sessionExpired && !error && step === 'credentials' && (
-          <div className="mb-5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-start gap-2.5">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-            <span>Your session has ended. Please sign in again.</span>
-          </div>
-        )}
+      <main className="flex flex-1 items-center justify-center px-4 pb-16 pt-6">
+        <div className="grid w-full max-w-4xl items-start gap-8 md:grid-cols-[minmax(0,1fr)_minmax(0,260px)] md:gap-10">
+          <section className="sheet relative mx-auto w-full max-w-md px-6 pb-7 pt-8 shadow-lift sm:px-8" aria-labelledby="login-title">
+            <h1 id="login-title" className="display text-[2.75rem] text-ink">
+              {step === 'otp' ? 'Check your email' : 'Sign in'}
+            </h1>
+            <p className="mt-2 text-[15px] text-ink-soft">
+              {step === 'otp'
+                ? 'Step 2 of 2: enter the code we just emailed you.'
+                : 'Step 1 of 2: your institution email and password.'}
+            </p>
 
-        {error && (
-          <div className="mb-5 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-start gap-2.5">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-            <span>{error}</span>
-          </div>
-        )}
-
-        {infoMessage && (
-          <div className="mb-5 p-3 rounded-xl bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs flex items-start gap-2.5">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-            <span>{infoMessage}</span>
-          </div>
-        )}
-
-        {step === 'credentials' ? (
-          <form onSubmit={handleCredentialsSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs font-medium text-zinc-300 mb-1.5">
-                Email Address
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-500">
-                  <Mail className="w-4 h-4" />
-                </div>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="student@exam.edu"
-                  className="w-full pl-9 pr-3.5 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-zinc-100 placeholder-zinc-500 text-xs focus:outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500/30 transition"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-zinc-300 mb-1.5">
-                Password
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-500">
-                  <Lock className="w-4 h-4" />
-                </div>
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full pl-9 pr-3.5 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-zinc-100 placeholder-zinc-500 text-xs focus:outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500/30 transition"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full mt-2 py-2.5 px-4 bg-zinc-100 hover:bg-white disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-950 font-semibold text-xs rounded-xl transition flex items-center justify-center gap-2 cursor-pointer shadow-sm"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Signing in...</span>
-                </>
-              ) : (
-                'Sign In'
+            <div className="mt-5 space-y-3" aria-live="polite">
+              {sessionExpired && !error && step === 'credentials' && (
+                <Alert tone="warn">Your session has ended. Please sign in again.</Alert>
               )}
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={handleOtpSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs font-medium text-zinc-300 mb-1.5 text-center">
-                6-Digit Security Code
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  required
-                  autoFocus
-                  maxLength={6}
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                  placeholder="••••••"
-                  className="w-full py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-zinc-100 text-center tracking-[0.5em] text-xl font-mono placeholder-zinc-600 focus:outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500/30 transition"
-                />
-              </div>
+              {error && <Alert tone="error">{error}</Alert>}
+              {infoMessage && <Alert tone="success">{infoMessage}</Alert>}
             </div>
 
-            <button
-              type="submit"
-              disabled={isSubmitting || otp.length !== 6}
-              className="w-full mt-2 py-2.5 px-4 bg-zinc-100 hover:bg-white disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-950 font-semibold text-xs rounded-xl transition flex items-center justify-center gap-2 cursor-pointer shadow-sm"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Verifying...</span>
-                </>
-              ) : (
-                'Verify & Continue'
-              )}
-            </button>
+            {step === 'credentials' ? (
+              <form onSubmit={handleCredentialsSubmit} className="mt-6 space-y-4" noValidate>
+                <Field label="Email address" required>
+                  <Input
+                    type="email"
+                    autoComplete="username"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@college.edu"
+                  />
+                </Field>
+                <Field label="Password" required>
+                  <Input
+                    type="password"
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                </Field>
+                <Button type="submit" size="lg" className="w-full" loading={isSubmitting}>
+                  {isSubmitting ? 'Signing in…' : 'Sign in'}
+                </Button>
+              </form>
+            ) : (
+              <form onSubmit={handleOtpSubmit} className="mt-6 space-y-4">
+                <Field label="6-digit code" hint="Paste or type the code. Digits only.">
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    autoFocus
+                    maxLength={6}
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                    placeholder="000000"
+                    className="num h-16 text-center text-[2rem] font-bold tracking-[0.45em] placeholder:text-paper-rule"
+                  />
+                </Field>
+                <Button type="submit" size="lg" className="w-full" loading={isSubmitting} disabled={otp.length !== 6}>
+                  {isSubmitting ? 'Verifying…' : 'Verify and continue'}
+                </Button>
+                <div className="flex items-center justify-between pt-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setStep('credentials');
+                      setOtp('');
+                      setError('');
+                      setInfoMessage('');
+                    }}
+                  >
+                    <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                    Back
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" disabled={isResending} onClick={handleResendOtp}>
+                    <RefreshCw className={`h-4 w-4 ${isResending ? 'animate-spin' : ''}`} aria-hidden="true" />
+                    Send a new code
+                  </Button>
+                </div>
+              </form>
+            )}
 
-            <div className="flex items-center justify-between pt-2 text-xs">
-              <button
-                type="button"
-                onClick={() => { setStep('credentials'); setOtp(''); setError(''); }}
-                className="inline-flex items-center gap-1 text-zinc-400 hover:text-zinc-200 transition cursor-pointer"
-              >
-                <ArrowLeft className="w-3 h-3" />
-                Back
-              </button>
+            <p className="mt-7 border-t border-paper-line pt-4 text-sm text-ink-faint">
+              Accounts are created by your institution. No account yet? Contact your exam administrator.
+            </p>
+          </section>
 
-              <button
-                type="button"
-                disabled={isResending}
-                onClick={handleResendOtp}
-                className="inline-flex items-center gap-1 text-zinc-400 hover:text-zinc-200 disabled:text-zinc-600 transition cursor-pointer font-medium"
-              >
-                <RefreshCw className={`w-3 h-3 ${isResending ? 'animate-spin' : ''}`} />
-                Resend Code
-              </button>
-            </div>
-          </form>
-        )}
-
-        <div className="mt-6 pt-4 border-t border-zinc-800/60 text-center">
-          <p className="text-[11px] text-zinc-500">
-            Protected by ExamShield active session supervision
-          </p>
+          <aside className="relative mx-auto w-full max-w-[260px] rounded-[2px] bg-stock-canary px-5 pb-5 pt-5 text-ink shadow-lift md:mt-10">
+            <h2 className="caps text-base">Before you sign in</h2>
+            <ul className="mt-3 space-y-2.5 text-sm text-ink-soft">
+              <li className="flex gap-2">
+                <Mail className="mt-0.5 h-4 w-4 shrink-0 text-stock-canary-ink" aria-hidden="true" />
+                Keep your email open: every sign-in asks for a one-time code.
+              </li>
+              <li>Exams run fullscreen. Leaving the exam tab or window is recorded.</li>
+              <li>
+                New here?{' '}
+                <Link to="/practice" className="font-semibold text-ink underline">
+                  Try a practice exam
+                </Link>{' '}
+                first. No account needed.
+              </li>
+            </ul>
+          </aside>
         </div>
-      </div>
+      </main>
     </div>
   );
 };

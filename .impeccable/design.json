@@ -1,0 +1,582 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-05T23:26:21.008Z",
+  "title": "Design System: ExamShield",
+  "extensions": {
+    "colorMeta": {
+      "board": {
+        "role": "primary",
+        "displayName": "Felt Board Green",
+        "canonical": "oklch(47.9% 0.078 161.1)",
+        "tonalRamp": [
+          "oklch(15% 0.047 161.1)",
+          "oklch(25% 0.078 161.1)",
+          "oklch(35% 0.078 161.1)",
+          "oklch(48% 0.078 161.1)",
+          "oklch(60% 0.078 161.1)",
+          "oklch(72% 0.078 161.1)",
+          "oklch(84% 0.078 161.1)",
+          "oklch(95% 0.047 161.1)"
+        ]
+      },
+      "board-deep": {
+        "role": "primary",
+        "displayName": "Board Shadow Green",
+        "canonical": "oklch(41.2% 0.066 162.4)",
+        "tonalRamp": [
+          "oklch(15% 0.040 162.4)",
+          "oklch(25% 0.066 162.4)",
+          "oklch(35% 0.066 162.4)",
+          "oklch(48% 0.066 162.4)",
+          "oklch(60% 0.066 162.4)",
+          "oklch(72% 0.066 162.4)",
+          "oklch(84% 0.066 162.4)",
+          "oklch(95% 0.040 162.4)"
+        ]
+      },
+      "board-ink": {
+        "role": "primary",
+        "displayName": "Chalk Mint",
+        "canonical": "oklch(92.0% 0.025 160.6)",
+        "tonalRamp": [
+          "oklch(15% 0.015 160.6)",
+          "oklch(25% 0.025 160.6)",
+          "oklch(35% 0.025 160.6)",
+          "oklch(48% 0.025 160.6)",
+          "oklch(60% 0.025 160.6)",
+          "oklch(72% 0.025 160.6)",
+          "oklch(84% 0.025 160.6)",
+          "oklch(95% 0.015 160.6)"
+        ]
+      },
+      "ink": {
+        "role": "secondary",
+        "displayName": "Timetable Navy Ink",
+        "canonical": "oklch(25.2% 0.056 264.0)",
+        "tonalRamp": [
+          "oklch(15% 0.034 264.0)",
+          "oklch(25% 0.056 264.0)",
+          "oklch(35% 0.056 264.0)",
+          "oklch(48% 0.056 264.0)",
+          "oklch(60% 0.056 264.0)",
+          "oklch(72% 0.056 264.0)",
+          "oklch(84% 0.056 264.0)",
+          "oklch(95% 0.034 264.0)"
+        ]
+      },
+      "ink-deep": {
+        "role": "secondary",
+        "displayName": "Press Ink",
+        "canonical": "oklch(19.9% 0.043 264.6)",
+        "tonalRamp": [
+          "oklch(15% 0.026 264.6)",
+          "oklch(25% 0.043 264.6)",
+          "oklch(35% 0.043 264.6)",
+          "oklch(48% 0.043 264.6)",
+          "oklch(60% 0.043 264.6)",
+          "oklch(72% 0.043 264.6)",
+          "oklch(84% 0.043 264.6)",
+          "oklch(95% 0.026 264.6)"
+        ]
+      },
+      "ink-soft": {
+        "role": "secondary",
+        "displayName": "Faded Ink",
+        "canonical": "oklch(40.8% 0.045 263.2)",
+        "tonalRamp": [
+          "oklch(15% 0.027 263.2)",
+          "oklch(25% 0.045 263.2)",
+          "oklch(35% 0.045 263.2)",
+          "oklch(48% 0.045 263.2)",
+          "oklch(60% 0.045 263.2)",
+          "oklch(72% 0.045 263.2)",
+          "oklch(84% 0.045 263.2)",
+          "oklch(95% 0.027 263.2)"
+        ]
+      },
+      "ink-faint": {
+        "role": "secondary",
+        "displayName": "Pencil Grey",
+        "canonical": "oklch(51.8% 0.040 267.3)",
+        "tonalRamp": [
+          "oklch(15% 0.024 267.3)",
+          "oklch(25% 0.040 267.3)",
+          "oklch(35% 0.040 267.3)",
+          "oklch(48% 0.040 267.3)",
+          "oklch(60% 0.040 267.3)",
+          "oklch(72% 0.040 267.3)",
+          "oklch(84% 0.040 267.3)",
+          "oklch(95% 0.024 267.3)"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Paper White",
+        "canonical": "oklch(100.0% 0.000 89.9)",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(25% 0.000 89.9)",
+          "oklch(35% 0.000 89.9)",
+          "oklch(48% 0.000 89.9)",
+          "oklch(60% 0.000 89.9)",
+          "oklch(72% 0.000 89.9)",
+          "oklch(84% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "paper-ground": {
+        "role": "neutral",
+        "displayName": "Corridor Ground",
+        "canonical": "oklch(94.8% 0.007 132.4)",
+        "tonalRamp": [
+          "oklch(15% 0.007 132.4)",
+          "oklch(25% 0.007 132.4)",
+          "oklch(35% 0.007 132.4)",
+          "oklch(48% 0.007 132.4)",
+          "oklch(60% 0.007 132.4)",
+          "oklch(72% 0.007 132.4)",
+          "oklch(84% 0.007 132.4)",
+          "oklch(95% 0.007 132.4)"
+        ]
+      },
+      "paper-tint": {
+        "role": "neutral",
+        "displayName": "Paper Tint",
+        "canonical": "oklch(97.5% 0.004 121.6)",
+        "tonalRamp": [
+          "oklch(15% 0.004 121.6)",
+          "oklch(25% 0.004 121.6)",
+          "oklch(35% 0.004 121.6)",
+          "oklch(48% 0.004 121.6)",
+          "oklch(60% 0.004 121.6)",
+          "oklch(72% 0.004 121.6)",
+          "oklch(84% 0.004 121.6)",
+          "oklch(95% 0.004 121.6)"
+        ]
+      },
+      "paper-rule": {
+        "role": "neutral",
+        "displayName": "Ruled Line",
+        "canonical": "oklch(87.8% 0.013 137.8)",
+        "tonalRamp": [
+          "oklch(15% 0.008 137.8)",
+          "oklch(25% 0.013 137.8)",
+          "oklch(35% 0.013 137.8)",
+          "oklch(48% 0.013 137.8)",
+          "oklch(60% 0.013 137.8)",
+          "oklch(72% 0.013 137.8)",
+          "oklch(84% 0.013 137.8)",
+          "oklch(95% 0.008 137.8)"
+        ]
+      },
+      "paper-line": {
+        "role": "neutral",
+        "displayName": "Faint Line",
+        "canonical": "oklch(92.9% 0.009 134.9)",
+        "tonalRamp": [
+          "oklch(15% 0.009 134.9)",
+          "oklch(25% 0.009 134.9)",
+          "oklch(35% 0.009 134.9)",
+          "oklch(48% 0.009 134.9)",
+          "oklch(60% 0.009 134.9)",
+          "oklch(72% 0.009 134.9)",
+          "oklch(84% 0.009 134.9)",
+          "oklch(95% 0.009 134.9)"
+        ]
+      },
+      "stock-canary": {
+        "role": "tertiary",
+        "displayName": "Canary Stock (Upcoming)",
+        "canonical": "oklch(91.6% 0.128 94.1)",
+        "tonalRamp": [
+          "oklch(15% 0.077 94.1)",
+          "oklch(25% 0.128 94.1)",
+          "oklch(35% 0.128 94.1)",
+          "oklch(48% 0.128 94.1)",
+          "oklch(60% 0.128 94.1)",
+          "oklch(72% 0.128 94.1)",
+          "oklch(84% 0.128 94.1)",
+          "oklch(95% 0.077 94.1)"
+        ]
+      },
+      "stock-canary-ink": {
+        "role": "tertiary",
+        "displayName": "Canary Ink",
+        "canonical": "oklch(44.3% 0.091 83.8)",
+        "tonalRamp": [
+          "oklch(15% 0.055 83.8)",
+          "oklch(25% 0.091 83.8)",
+          "oklch(35% 0.091 83.8)",
+          "oklch(48% 0.091 83.8)",
+          "oklch(60% 0.091 83.8)",
+          "oklch(72% 0.091 83.8)",
+          "oklch(84% 0.091 83.8)",
+          "oklch(95% 0.055 83.8)"
+        ]
+      },
+      "stock-mint": {
+        "role": "tertiary",
+        "displayName": "Mint Stock (Open)",
+        "canonical": "oklch(89.7% 0.056 157.9)",
+        "tonalRamp": [
+          "oklch(15% 0.034 157.9)",
+          "oklch(25% 0.056 157.9)",
+          "oklch(35% 0.056 157.9)",
+          "oklch(48% 0.056 157.9)",
+          "oklch(60% 0.056 157.9)",
+          "oklch(72% 0.056 157.9)",
+          "oklch(84% 0.056 157.9)",
+          "oklch(95% 0.034 157.9)"
+        ]
+      },
+      "stock-mint-ink": {
+        "role": "tertiary",
+        "displayName": "Mint Ink",
+        "canonical": "oklch(39.2% 0.076 163.5)",
+        "tonalRamp": [
+          "oklch(15% 0.046 163.5)",
+          "oklch(25% 0.076 163.5)",
+          "oklch(35% 0.076 163.5)",
+          "oklch(48% 0.076 163.5)",
+          "oklch(60% 0.076 163.5)",
+          "oklch(72% 0.076 163.5)",
+          "oklch(84% 0.076 163.5)",
+          "oklch(95% 0.046 163.5)"
+        ]
+      },
+      "stock-sky": {
+        "role": "tertiary",
+        "displayName": "Sky Stock (Submitted)",
+        "canonical": "oklch(89.2% 0.040 244.8)",
+        "tonalRamp": [
+          "oklch(15% 0.024 244.8)",
+          "oklch(25% 0.040 244.8)",
+          "oklch(35% 0.040 244.8)",
+          "oklch(48% 0.040 244.8)",
+          "oklch(60% 0.040 244.8)",
+          "oklch(72% 0.040 244.8)",
+          "oklch(84% 0.040 244.8)",
+          "oklch(95% 0.024 244.8)"
+        ]
+      },
+      "stock-sky-ink": {
+        "role": "tertiary",
+        "displayName": "Sky Ink",
+        "canonical": "oklch(40.0% 0.088 249.7)",
+        "tonalRamp": [
+          "oklch(15% 0.053 249.7)",
+          "oklch(25% 0.088 249.7)",
+          "oklch(35% 0.088 249.7)",
+          "oklch(48% 0.088 249.7)",
+          "oklch(60% 0.088 249.7)",
+          "oklch(72% 0.088 249.7)",
+          "oklch(84% 0.088 249.7)",
+          "oklch(95% 0.053 249.7)"
+        ]
+      },
+      "stock-salmon": {
+        "role": "tertiary",
+        "displayName": "Salmon Stock (Flagged / Auto-submitted)",
+        "canonical": "oklch(86.8% 0.073 39.5)",
+        "tonalRamp": [
+          "oklch(15% 0.044 39.5)",
+          "oklch(25% 0.073 39.5)",
+          "oklch(35% 0.073 39.5)",
+          "oklch(48% 0.073 39.5)",
+          "oklch(60% 0.073 39.5)",
+          "oklch(72% 0.073 39.5)",
+          "oklch(84% 0.073 39.5)",
+          "oklch(95% 0.044 39.5)"
+        ]
+      },
+      "stock-salmon-ink": {
+        "role": "tertiary",
+        "displayName": "Salmon Ink",
+        "canonical": "oklch(43.0% 0.134 35.2)",
+        "tonalRamp": [
+          "oklch(15% 0.080 35.2)",
+          "oklch(25% 0.134 35.2)",
+          "oklch(35% 0.134 35.2)",
+          "oklch(48% 0.134 35.2)",
+          "oklch(60% 0.134 35.2)",
+          "oklch(72% 0.134 35.2)",
+          "oklch(84% 0.134 35.2)",
+          "oklch(95% 0.080 35.2)"
+        ]
+      },
+      "highlighter": {
+        "role": "tertiary",
+        "displayName": "Fluorescent Highlighter",
+        "canonical": "oklch(92.1% 0.182 114.5)",
+        "tonalRamp": [
+          "oklch(15% 0.109 114.5)",
+          "oklch(25% 0.182 114.5)",
+          "oklch(35% 0.182 114.5)",
+          "oklch(48% 0.182 114.5)",
+          "oklch(60% 0.182 114.5)",
+          "oklch(72% 0.182 114.5)",
+          "oklch(84% 0.182 114.5)",
+          "oklch(95% 0.109 114.5)"
+        ]
+      },
+      "alarm": {
+        "role": "tertiary",
+        "displayName": "Correction Red",
+        "canonical": "oklch(50.0% 0.182 29.5)",
+        "tonalRamp": [
+          "oklch(15% 0.109 29.5)",
+          "oklch(25% 0.182 29.5)",
+          "oklch(35% 0.182 29.5)",
+          "oklch(48% 0.182 29.5)",
+          "oklch(60% 0.182 29.5)",
+          "oklch(72% 0.182 29.5)",
+          "oklch(84% 0.182 29.5)",
+          "oklch(95% 0.109 29.5)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Landing notice headline and the result score; Archivo 800 at wdth 68, uppercase, line-height 0.92. Steps 3.6rem / 5rem / 5.6rem; landing section heads 3rem / 4rem."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Page titles (2.5rem phone, 3.25rem desktop), sign-in title, tabular question numbers."
+      },
+      "title": {
+        "displayName": "Title (caps)",
+        "purpose": "Sheet headers, notice and dialog titles; Archivo 700 at wdth 72, 0.04em tracking."
+      },
+      "body-reading": {
+        "displayName": "Body Reading",
+        "purpose": "Question stems, option text, timetable paper titles."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Default running text, paragraphs held near 46 to 62ch."
+      },
+      "body-ui": {
+        "displayName": "Body UI",
+        "purpose": "Buttons, nav links, form text, table cells."
+      },
+      "label": {
+        "displayName": "Label (caps)",
+        "purpose": "Stamps (11px), figure labels, column heads (12 to 13px)."
+      },
+      "figure": {
+        "displayName": "Figure",
+        "purpose": "Tabular value with its unit in the Figure block; every quantity uses tabular lining figures."
+      }
+    },
+    "shadows": [
+      {
+        "name": "sheet",
+        "value": "0 1px 1px rgba(20,33,61,0.06), 0 6px 16px -6px rgba(20,33,61,0.14)",
+        "purpose": "Every working sheet."
+      },
+      {
+        "name": "lift",
+        "value": "0 1px 2px rgba(20,33,61,0.08), 0 10px 24px -10px rgba(20,33,61,0.28)",
+        "purpose": "Sign-in sheet and its aside."
+      },
+      {
+        "name": "pinned",
+        "value": "0 2px 3px rgba(20,33,61,0.10), 0 18px 32px -14px rgba(20,33,61,0.38)",
+        "purpose": "Pinned notices, landing hero sheets, dialogs."
+      },
+      {
+        "name": "thumb-bar",
+        "value": "0 -6px 16px -10px rgba(20,33,61,0.3)",
+        "purpose": "Fixed mobile question navigation."
+      },
+      {
+        "name": "focus-halo",
+        "value": "0 0 0 5px #E3F24C",
+        "purpose": "Paired with a 2px ink outline at 2px offset on every :focus-visible."
+      },
+      {
+        "name": "field-focus",
+        "value": "0 0 0 3px rgba(227,242,76,0.9)",
+        "purpose": "Input, textarea and select focus, with an ink border."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out-expo",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "All state transitions and the highlighter sweep."
+      },
+      {
+        "name": "duration-state",
+        "value": "150ms",
+        "purpose": "Background, border, colour and press-scale transitions."
+      },
+      {
+        "name": "press-scale",
+        "value": "scale(0.96)",
+        "purpose": "Button press; options use 0.99."
+      },
+      {
+        "name": "hl-swipe",
+        "value": "520ms clip-path inset(0 100% 0 0) to inset(0 0 0 0)",
+        "purpose": "Highlighter sweep on marks, played on top of an already-visible mark; rows use 640ms. Removed under prefers-reduced-motion."
+      },
+      {
+        "name": "progress",
+        "value": "500ms width",
+        "purpose": "Exam progress rule fill."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Felt-green action for ordinary forward steps (Next, Save, Start on a non-highlighted row).",
+      "html": "<button class=\"ds-btn-primary\">Next <svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 12h14\"/><path d=\"m12 5 7 7-7 7\"/></svg></button>",
+      "css": ".ds-btn-primary{font-family:'Atkinson Hyperlegible Next Variable',system-ui,sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 16px;font-size:15px;font-weight:600;border-radius:5px;border:1px solid transparent;cursor:pointer;transition:background-color 150ms cubic-bezier(0.16,1,0.3,1),border-color 150ms cubic-bezier(0.16,1,0.3,1),scale 150ms cubic-bezier(0.16,1,0.3,1);background:#2F6B4F;color:#fff;box-shadow:0 1px 0 rgba(20,33,61,0.25);}@media (hover:hover){.ds-btn-primary:hover{background:#245640;}}.ds-btn-primary:active{scale:0.96;}.ds-btn-primary:focus-visible{outline:2px solid #14213D;outline-offset:2px;box-shadow:0 0 0 5px #E3F24C;}"
+    },
+    {
+      "name": "Ink Button",
+      "kind": "button",
+      "refersTo": "button-ink",
+      "description": "The single decisive action in context: Resume exam, Start on your highlighted row, Finish.",
+      "html": "<button class=\"ds-btn-ink\">Resume exam <svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 12h14\"/><path d=\"m12 5 7 7-7 7\"/></svg></button>",
+      "css": ".ds-btn-ink{font-family:'Atkinson Hyperlegible Next Variable',system-ui,sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 16px;font-size:15px;font-weight:600;border-radius:5px;border:1px solid transparent;cursor:pointer;transition:background-color 150ms cubic-bezier(0.16,1,0.3,1),border-color 150ms cubic-bezier(0.16,1,0.3,1),scale 150ms cubic-bezier(0.16,1,0.3,1);background:#14213D;color:#fff;}@media (hover:hover){.ds-btn-ink:hover{background:#0C1529;}}.ds-btn-ink:active{scale:0.96;}.ds-btn-ink:focus-visible{outline:2px solid #14213D;outline-offset:2px;box-shadow:0 0 0 5px #E3F24C;}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "White paper button with a ruled border for secondary actions (View result, Prev).",
+      "html": "<button class=\"ds-btn-secondary\">View result</button>",
+      "css": ".ds-btn-secondary{font-family:'Atkinson Hyperlegible Next Variable',system-ui,sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 16px;font-size:15px;font-weight:600;border-radius:5px;border:1px solid transparent;cursor:pointer;transition:background-color 150ms cubic-bezier(0.16,1,0.3,1),border-color 150ms cubic-bezier(0.16,1,0.3,1),scale 150ms cubic-bezier(0.16,1,0.3,1);background:#fff;color:#14213D;border-color:#D3D9D1;}@media (hover:hover){.ds-btn-secondary:hover{border-color:#5E6880;background:#F6F7F4;}}.ds-btn-secondary:active{scale:0.96;}.ds-btn-secondary:focus-visible{outline:2px solid #14213D;outline-offset:2px;box-shadow:0 0 0 5px #E3F24C;}"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Bound label, white field, ink border and highlighter halo on focus.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">Institution email</span><input class=\"ds-input\" type=\"email\" placeholder=\"name@college.edu\"></label>",
+      "css": ".ds-field{display:block;font-family:'Atkinson Hyperlegible Next Variable',system-ui,sans-serif;max-width:320px;}.ds-field-label{display:block;margin-bottom:6px;font-size:14px;font-weight:600;color:#14213D;}.ds-input{font-family:'Atkinson Hyperlegible Next Variable',system-ui,sans-serif;width:100%;min-height:44px;padding:0 12px;font-size:15px;color:#14213D;background:#fff;border:1px solid #D3D9D1;border-radius:5px;caret-color:#2F6B4F;transition:border-color 150ms,box-shadow 150ms;}.ds-input::placeholder{color:rgba(94,104,128,0.8);}@media (hover:hover){.ds-input:hover{border-color:rgba(94,104,128,0.7);}}.ds-input:focus{outline:none;border-color:#14213D;box-shadow:0 0 0 3px rgba(227,242,76,0.9);}"
+    },
+    {
+      "name": "Board Navigation",
+      "kind": "nav",
+      "refersTo": "nav-bar",
+      "description": "Felt-green bar with display-caps wordmark and a highlighter underline on the current page.",
+      "html": "<nav class=\"ds-nav\"><span class=\"ds-nav-mark\">ExamShield</span><a class=\"ds-nav-link is-active\" href=\"#\">My timetable</a><a class=\"ds-nav-link\" href=\"#\">Profile</a></nav>",
+      "css": ".ds-nav{display:flex;align-items:stretch;gap:4px;height:64px;padding:0 24px;background:#2F6B4F;border-bottom:1px solid #245640;}.ds-nav-mark{align-self:center;margin-right:16px;font-family:'Archivo Variable',sans-serif;font-stretch:68%;font-weight:800;text-transform:uppercase;font-size:1.45rem;line-height:1;color:#fff;}.ds-nav-link{position:relative;display:flex;align-items:center;padding:0 12px;font-family:'Atkinson Hyperlegible Next Variable',system-ui,sans-serif;font-size:15px;font-weight:600;color:#D7EADF;text-decoration:none;transition:color 150ms;}@media (hover:hover){.ds-nav-link:hover{color:#fff;}}.ds-nav-link.is-active{color:#fff;}.ds-nav-link.is-active::after{content:'';position:absolute;left:8px;right:8px;bottom:0;height:3px;border-radius:2px 2px 0 0;background:#E3F24C;}.ds-nav-link:focus-visible{outline:2px solid #14213D;outline-offset:2px;box-shadow:0 0 0 5px #E3F24C;}"
+    },
+    {
+      "name": "Status Stamps",
+      "kind": "chip",
+      "refersTo": "stamp-open",
+      "description": "Fixed status vocabulary: coloured paper stock always carrying its word; spent states struck through; MARK for non-status ink marks.",
+      "html": "<div class=\"ds-stamps\"><span class=\"ds-stamp ds-upcoming\">Upcoming</span><span class=\"ds-stamp ds-open\">Open now</span><span class=\"ds-stamp ds-progress\">In progress</span><span class=\"ds-stamp ds-submitted\">Submitted</span><span class=\"ds-stamp ds-flagged\">Flagged</span><span class=\"ds-stamp ds-missed\">Missed</span><span class=\"ds-stamp ds-mark\">Multiple choice</span></div>",
+      "css": ".ds-stamps{display:flex;flex-wrap:wrap;gap:6px;}.ds-stamp{font-family:'Archivo Variable',sans-serif;font-stretch:72%;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;display:inline-flex;align-items:center;white-space:nowrap;font-size:11px;line-height:1;padding:3px 6px;border:1px solid;border-radius:3px;}.ds-upcoming{background:rgba(255,226,122,0.4);color:#6B4E00;border-color:rgba(107,78,0,0.5);border-style:dashed;}.ds-open{background:#BFE9CF;color:#11523A;border-color:rgba(17,82,58,0.4);}.ds-progress{background:#E3F24C;color:#14213D;border-color:rgba(20,33,61,0.3);}.ds-submitted{background:#C6DFF5;color:#1C4A75;border-color:rgba(28,74,117,0.4);}.ds-flagged{background:#FFC4B0;color:#8A2B12;border-color:rgba(138,43,18,0.5);}.ds-missed{background:#fff;color:#5E6880;border-color:#D3D9D1;text-decoration:line-through;text-decoration-color:rgba(94,104,128,0.7);}.ds-mark{background:#fff;color:#14213D;border-color:#14213D;}"
+    },
+    {
+      "name": "Timetable Sheet with Your Row",
+      "kind": "card",
+      "refersTo": "sheet",
+      "description": "White sheet, caps header, 2px ink column rule; your next exam row swiped with highlighter (visible at rest, sweep on top).",
+      "html": "<section class=\"ds-sheet\"><header class=\"ds-sheet-head\"><h2>Timetable</h2><span>2 papers</span></header><div class=\"ds-cols\"><span>Day</span><span>Paper</span><span>Length</span></div><div class=\"ds-row ds-hl-row\"><span class=\"ds-num\"><b>Tue, Oct 6</b></span><span><b>Algorithms Weekly Quiz 4</b></span><span class=\"ds-num\">30 min</span></div><div class=\"ds-row\"><span class=\"ds-num\"><b>Thu, Oct 8</b></span><span><b>Operating Systems Quiz 3</b></span><span class=\"ds-num\">20 min</span></div></section>",
+      "css": ".ds-sheet{font-family:'Atkinson Hyperlegible Next Variable',system-ui,sans-serif;max-width:560px;background:#fff;color:#14213D;border-radius:4px;box-shadow:0 1px 1px rgba(20,33,61,0.06),0 6px 16px -6px rgba(20,33,61,0.14);}.ds-sheet-head{display:flex;align-items:baseline;gap:12px;padding:12px 20px;border-bottom:1px solid #E5E9E3;}.ds-sheet-head h2{font-family:'Archivo Variable',sans-serif;font-stretch:72%;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;margin:0;font-size:15px;}.ds-sheet-head span{font-size:14px;color:#5E6880;font-variant-numeric:tabular-nums lining-nums;}.ds-cols,.ds-row{display:grid;grid-template-columns:7rem 1fr 4.5rem;gap:16px;padding:0 20px;}.ds-cols{font-family:'Archivo Variable',sans-serif;font-stretch:72%;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;font-size:12px;color:#5E6880;padding-top:16px;padding-bottom:8px;border-bottom:2px solid #14213D;}.ds-row{padding-top:16px;padding-bottom:16px;font-size:15px;}.ds-num{font-variant-numeric:tabular-nums lining-nums;}.ds-hl-row{position:relative;isolation:isolate;}.ds-hl-row::before{content:'';position:absolute;inset:4px -2px;z-index:-1;background:linear-gradient(98deg,rgba(227,242,76,0) 0%,#E3F24C 0.8%,#E3F24C 99.2%,rgba(227,242,76,0) 100%);border-radius:2px 8px 3px 10px;transform:rotate(-0.25deg);animation:ds-hl-swipe 640ms cubic-bezier(0.16,1,0.3,1);}@keyframes ds-hl-swipe{from{clip-path:inset(0 100% 0 0);}to{clip-path:inset(0 0 0 0);}}@media (prefers-reduced-motion:reduce){.ds-hl-row::before{animation:none;}}"
+    },
+    {
+      "name": "Answer Option",
+      "kind": "custom",
+      "refersTo": "option",
+      "description": "Radio-group option rows: lettered box outlined when unchosen, ink-filled when chosen; the chosen text is swiped with highlighter.",
+      "html": "<div class=\"ds-options\" role=\"radiogroup\"><button class=\"ds-option\" role=\"radio\" aria-checked=\"false\"><span class=\"ds-letter\">A</span><span>Last in, first out</span></button><button class=\"ds-option is-chosen\" role=\"radio\" aria-checked=\"true\"><span class=\"ds-letter\">B</span><span class=\"ds-hl-mark\">First in, first out</span></button></div>",
+      "css": ".ds-options{display:grid;gap:8px;max-width:420px;}.ds-option{font-family:'Atkinson Hyperlegible Next Variable',system-ui,sans-serif;display:flex;align-items:center;gap:12px;width:100%;min-height:56px;padding:12px 16px;text-align:left;font-size:17px;line-height:1.375;color:#14213D;background:#fff;border:1px solid #D3D9D1;border-radius:5px;cursor:pointer;transition:border-color 150ms,background-color 150ms,scale 150ms;}@media (hover:hover){.ds-option:not(.is-chosen):hover{border-color:#5E6880;background:#F6F7F4;}}.ds-option:active{scale:0.99;}.ds-option:focus-visible{outline:2px solid #14213D;outline-offset:2px;box-shadow:0 0 0 5px #E3F24C;}.ds-option.is-chosen{border-color:#14213D;font-weight:600;}.ds-letter{font-family:'Archivo Variable',sans-serif;font-stretch:72%;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;flex-shrink:0;display:flex;align-items:center;justify-content:center;width:32px;height:32px;font-size:15px;border:1px solid rgba(94,104,128,0.6);border-radius:3px;color:#3D4A63;}.is-chosen .ds-letter{background:#14213D;border-color:#14213D;color:#fff;}.ds-hl-mark{position:relative;isolation:isolate;}.ds-hl-mark::before{content:'';position:absolute;inset:12% -6px 10% -6px;z-index:-1;background:linear-gradient(100deg,rgba(227,242,76,0) 0%,rgba(227,242,76,0.85) 1.5%,#E3F24C 6%,#E3F24C 94%,rgba(227,242,76,0.8) 98.5%,rgba(227,242,76,0) 100%);border-radius:3px 6px 4px 7px;transform:rotate(-0.6deg);animation:ds-hl-swipe-mark 520ms cubic-bezier(0.16,1,0.3,1);}@keyframes ds-hl-swipe-mark{from{clip-path:inset(0 100% 0 0);}to{clip-path:inset(0 0 0 0);}}@media (prefers-reduced-motion:reduce){.ds-hl-mark::before{animation:none;}}"
+    },
+    {
+      "name": "Pinned Notice",
+      "kind": "card",
+      "refersTo": "notice-pinned",
+      "description": "Canary notice paper with pushpin and slight tilt; only for the landing page, the student Rules notice and empty states.",
+      "html": "<aside class=\"ds-notice\"><span class=\"ds-pin\"></span><h3>Exam rules</h3><p>Each paper sets its own violation limit. Reach it and the exam submits itself.</p></aside>",
+      "css": ".ds-notice{position:relative;max-width:224px;padding:24px 20px 20px;background:#FFE27A;color:#14213D;border-radius:2px;transform:rotate(0.6deg);box-shadow:0 2px 3px rgba(20,33,61,0.10),0 18px 32px -14px rgba(20,33,61,0.38);font-family:'Atkinson Hyperlegible Next Variable',system-ui,sans-serif;}.ds-notice h3{font-family:'Archivo Variable',sans-serif;font-stretch:72%;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;margin:0;font-size:16px;}.ds-notice p{margin:12px 0 0;font-size:14px;line-height:1.375;color:#3D4A63;}.ds-pin{position:absolute;top:-8px;left:50%;width:18px;height:18px;margin-left:-9px;border-radius:50%;background:radial-gradient(circle,#8E2010 0 2.2px,#C8371F 2.4px);box-shadow:inset 0 0 0 1.5px #8E2010;filter:drop-shadow(1px 3px 2px rgba(20,33,61,0.35));}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Exam Noticeboard",
+    "overview": "Every exam lives on a printed exam timetable, and your own row is the one swiped with highlighter. The shell is a felt-green board; the work happens on white printed sheets in navy-black ink. The system refuses the category's illustrated purple SaaS dashboard and the product's old near-black console: nothing glows, nothing floats in a void, nothing is decorated for its own sake. Information reads like a well-kept corridor notice: condensed caps for heads, a highly legible face for every sentence, tabular figures for every quantity.\n\nState is printed, not coloured in. Status is a stamp cut from coloured paper stock that always carries its word. Correctness, event types and question formats use ink marks: a white stamp with an ink border, a filled ink box, a strike-through. Spent things are struck through, pending things are outlined with a dashed rule, chosen things are filled. The fluorescent highlighter is the one loud colour, and it only ever means \"you, now\".\n\nDensity is calm and generous on the student path (one question per phone screen, thumb-reach navigation, 44px minimum targets) and tighter on faculty and admin desks, where sheets carry tables of rows. Pins and tilt belong to the board's own notices (landing page, the student Rules notice, empty states); working sheets sit square.",
+    "keyCharacteristics": [
+      "Felt-green board shell (CSS-only noise texture) over a pale paper ground.",
+      "White sheets with a small 4px corner and a real two-layer paper shadow.",
+      "Archivo condensed caps (wdth 68 to 72) for heads, stamps and column labels; Atkinson Hyperlegible Next for all reading.",
+      "Coloured paper stock as a fixed status vocabulary, always with a printed word.",
+      "Highlighter swipe (#E3F24C) reserved for you/now, visible by default, with a clip-path sweep played on top.",
+      "Tabular lining figures with units on every quantity."
+    ],
+    "rules": [
+      {
+        "name": "The You-Are-Here Rule",
+        "body": "Highlighter marks only the thing that belongs to the current user at this moment: your next exam row, current question, chosen option, own score. It is visible by default; the swipe animation plays on top of an already-visible mark and is removed under reduced motion. If a highlighted thing is not about \"you, now\", it is wrong.",
+        "section": "colors"
+      },
+      {
+        "name": "The Printed Word Rule",
+        "body": "Coloured stock inside a stamp, chip or row is the fixed status vocabulary (Upcoming, Open, Submitted, Flagged / Auto-submitted) and always carries its printed word. Never colour alone, never a new hue for a new meaning. A whole pinned notice may be cut from canary stock (the Rules notice, the login \"Before you sign in\" aside, empty states, landing claims); that is the board's notice paper and carries no status.",
+        "section": "colors"
+      },
+      {
+        "name": "The Ink Mark Rule",
+        "body": "Anything that is not a status (question type, audit access/admin events, correctness on review, formats) is an ink mark: a white stamp with a full ink border, an ink-filled box, or a strike-through. Do not borrow stock colours for it.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tabular Quantity Rule",
+        "body": "Every quantity (times, dates, durations, counts, scores, violations, IPs) is set in tabular lining figures and carries its unit or noun: \"30 min\", \"6 questions\", \"0/3 violations\", \"2 / 9\". A bare number is unfinished.",
+        "section": "typography"
+      },
+      {
+        "name": "The Two Voices Rule",
+        "body": "Caps Archivo labels and heads; Atkinson reads. Never set a sentence in condensed caps, never set a head in the reading face.",
+        "section": "typography"
+      },
+      {
+        "name": "The Square Desk Rule",
+        "body": "Pins and tilt (0.6 to 2deg) appear only on the landing page, the student Rules notice and empty-state notices. Working sheets, forms, tables and the exam player are square and unpinned.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do reserve the highlighter (#E3F24C) for you/now: your next exam row, current question, chosen option, own score, focus.",
+      "Do keep the highlighter visible at rest and play the 520ms (rows 640ms) clip-path sweep on top of it; drop the sweep under prefers-reduced-motion.",
+      "Do pair every stock colour with its printed word, using only the fixed vocabulary: canary Upcoming, mint Open, sky Submitted, salmon Flagged / Auto-submitted.",
+      "Do use the MARK stamp (white, ink border), ink fills and strike-through for correctness, event types and formats.",
+      "Do set every quantity in tabular lining figures with its unit.",
+      "Do keep targets at 44px minimum and the phone question navigation in thumb reach.",
+      "Do guard hover styles behind real hover support (hoverOnlyWhenSupported).",
+      "Do use the shared Dialog for every modal so semantics, focus trap and Escape come for free."
+    ],
+    "donts": [
+      "Don't use the highlighter as a hover colour, brand accent or decoration.",
+      "Don't invent a new stock colour or tone for a new meaning, and don't show status by colour alone.",
+      "Don't pin or tilt working sheets, forms, tables or the exam player; pins and tilt live on the landing page, the Rules notice and empty states.",
+      "Don't set sentences in condensed caps or headings in the reading face.",
+      "Don't use pure black shadows or glows; shadows are navy-tinted paper shadows.",
+      "Don't return to dark console surfaces or illustrated purple dashboard styling."
+    ]
+  }
+}

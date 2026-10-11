@@ -1,16 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { Search, UserPlus, Users } from 'lucide-react';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
-import {
-  Users,
-  Plus,
-  Search,
-  CheckCircle2,
-  AlertCircle,
-  Loader2,
-  X,
-  UserPlus
-} from 'lucide-react';
+import { Alert, Button, Dialog, EmptyNotice, Field, Figure, Input, PageHeader, Select, Sheet, SheetHeader, Spinner, Stamp } from '../../components/ui';
+import { fmtDate } from '../../utils/format';
+
+const ROLE_LABEL = { STUDENT: 'Student', FACULTY: 'Faculty', ADMIN: 'Administrator' };
+const EMPTY_FORM = { name: '', email: '', password: '', role: 'STUDENT', batch: '' };
 
 const UserManagement = () => {
   const { user: currentUser } = useAuth();
@@ -18,23 +14,24 @@ const UserManagement = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [formError, setFormError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
-  // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
 
-  // Create User Modal State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-    role: 'STUDENT',
-    batch: ''
-  });
+  const [formData, setFormData] = useState(EMPTY_FORM);
+
+  const [pendingToggle, setPendingToggle] = useState(null);
+  const [isToggling, setIsToggling] = useState(false);
+
+  const flash = (msg) => {
+    setSuccessMessage(msg);
+    setTimeout(() => setSuccessMessage(''), 4000);
+  };
 
   const fetchUsers = async () => {
     try {
@@ -42,7 +39,7 @@ const UserManagement = () => {
       const response = await api.get('/admin/users');
       setUsers(response.data?.users || []);
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to load system accounts');
+      setError(err.response?.data?.error || 'Could not load accounts.');
     } finally {
       setLoading(false);
     }
@@ -52,434 +49,282 @@ const UserManagement = () => {
     fetchUsers();
   }, []);
 
-  const handleToggleStatus = async (targetUser) => {
+  const requestToggle = (targetUser) => {
+    setError('');
     if (targetUser.id === currentUser?.userId) {
-      setError('You cannot deactivate your own administrator account');
-      setTimeout(() => setError(''), 3000);
+      setError('You cannot deactivate your own administrator account.');
       return;
     }
+    setPendingToggle(targetUser);
+  };
 
+  const confirmToggle = async () => {
+    const targetUser = pendingToggle;
+    if (!targetUser) return;
     const nextStatus = !targetUser.isActive;
-    const actionWord = nextStatus ? 'activate' : 'deactivate';
-
     try {
-      await api.patch(`/admin/users/${targetUser.id}/status`, {
-        isActive: nextStatus
-      });
-
-      setSuccessMessage(`Account for ${targetUser.name} ${actionWord}d`);
+      setIsToggling(true);
+      await api.patch(`/admin/users/${targetUser.id}/status`, { isActive: nextStatus });
+      flash(`${targetUser.name} was ${nextStatus ? 'reactivated' : 'deactivated'}.`);
       fetchUsers();
-      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (err) {
-      setError(err.response?.data?.error || `Failed to ${actionWord} user`);
-      setTimeout(() => setError(''), 3000);
+      setError(err.response?.data?.error || 'Could not change this account.');
+    } finally {
+      setIsToggling(false);
+      setPendingToggle(null);
     }
   };
 
   const handleCreateUser = async (e) => {
     e.preventDefault();
-    setError('');
+    setFormError('');
 
     if (!formData.name.trim() || !formData.email.trim() || !formData.password.trim()) {
-      setError('Please fill in all required fields');
+      setFormError('Fill in the name, email and starting password.');
       return;
     }
-
     if (formData.role === 'STUDENT' && !formData.batch.trim()) {
-      setError('Cohort / Batch is required for student accounts');
+      setFormError('Students need a batch so they see the right exams.');
       return;
     }
 
     try {
       setIsSubmitting(true);
-      const payload = {
+      await api.post('/admin/users', {
         name: formData.name.trim(),
         email: formData.email.trim().toLowerCase(),
         password: formData.password,
         role: formData.role,
         batch: formData.role === 'STUDENT' ? formData.batch.trim() : null
-      };
-
-      await api.post('/admin/users', payload);
-
-      setSuccessMessage(`Account for ${formData.name} created successfully`);
-      setIsCreateModalOpen(false);
-      setFormData({
-        name: '',
-        email: '',
-        password: '',
-        role: 'STUDENT',
-        batch: ''
       });
+      flash(`Account created for ${formData.name.trim()}. Share the starting password with them privately.`);
+      setIsCreateModalOpen(false);
+      setFormData(EMPTY_FORM);
       fetchUsers();
-      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to create user');
+      setFormError(err.response?.data?.error || 'Could not create the account.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Metrics calculation
-  const totalCount = users.length;
-  const studentCount = users.filter((u) => u.role === 'STUDENT').length;
-  const facultyCount = users.filter((u) => u.role === 'FACULTY').length;
-  const adminCount = users.filter((u) => u.role === 'ADMIN').length;
+  const counts = {
+    total: users.length,
+    STUDENT: users.filter((u) => u.role === 'STUDENT').length,
+    FACULTY: users.filter((u) => u.role === 'FACULTY').length,
+    ADMIN: users.filter((u) => u.role === 'ADMIN').length,
+    inactive: users.filter((u) => !u.isActive).length
+  };
 
   const filteredUsers = users.filter((u) => {
-    const matchesSearch =
-      u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (u.batch && u.batch.toLowerCase().includes(searchQuery.toLowerCase()));
-
+    const s = searchQuery.toLowerCase();
+    const matchesSearch = u.name.toLowerCase().includes(s) || u.email.toLowerCase().includes(s) || (u.batch && u.batch.toLowerCase().includes(s));
     const matchesRole = roleFilter === 'ALL' || u.role === roleFilter;
-
-    const matchesStatus =
-      statusFilter === 'ALL' ||
-      (statusFilter === 'ACTIVE' && u.isActive) ||
-      (statusFilter === 'DEACTIVATED' && !u.isActive);
-
+    const matchesStatus = statusFilter === 'ALL' || (statusFilter === 'ACTIVE' && u.isActive) || (statusFilter === 'DEACTIVATED' && !u.isActive);
     return matchesSearch && matchesRole && matchesStatus;
   });
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-4 border-b border-zinc-800/80 pb-6">
-        <div>
-          <h1 className="text-xl font-semibold text-zinc-100 tracking-tight">
-            User Accounts
-          </h1>
-          <p className="text-xs text-zinc-400 mt-0.5">
-            Provision candidate accounts and manage institutional access
-          </p>
-        </div>
-
-        <button
-          onClick={() => {
-            setError('');
-            setIsCreateModalOpen(true);
-          }}
-          className="px-4 py-2 bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
-        >
-          <UserPlus className="w-3.5 h-3.5" />
-          <span>Create Account</span>
-        </button>
-      </div>
-
-      {/* Notifications */}
-      {successMessage && (
-        <div className="p-3 bg-zinc-900 border border-zinc-700 text-zinc-200 text-xs rounded-lg flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-          <span>{successMessage}</span>
-        </div>
-      )}
-
-      {error && !isCreateModalOpen && (
-        <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs rounded-lg flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
-
-      {/* Metrics Row */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="p-3.5 bg-zinc-900 border border-zinc-800 rounded-xl space-y-1">
-          <span className="text-[10px] text-zinc-500 uppercase tracking-wider block">Total Accounts</span>
-          <p className="text-xl font-semibold text-zinc-100 font-mono">{totalCount}</p>
-        </div>
-
-        <div className="p-3.5 bg-zinc-900 border border-zinc-800 rounded-xl space-y-1">
-          <span className="text-[10px] text-zinc-500 uppercase tracking-wider block">Students</span>
-          <p className="text-xl font-semibold text-zinc-100 font-mono">{studentCount}</p>
-        </div>
-
-        <div className="p-3.5 bg-zinc-900 border border-zinc-800 rounded-xl space-y-1">
-          <span className="text-[10px] text-zinc-500 uppercase tracking-wider block">Faculty</span>
-          <p className="text-xl font-semibold text-zinc-100 font-mono">{facultyCount}</p>
-        </div>
-
-        <div className="p-3.5 bg-zinc-900 border border-zinc-800 rounded-xl space-y-1">
-          <span className="text-[10px] text-zinc-500 uppercase tracking-wider block">Administrators</span>
-          <p className="text-xl font-semibold text-zinc-100 font-mono">{adminCount}</p>
-        </div>
-      </div>
-
-      {/* Filter Toolbar */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="relative">
-          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-          <input
-            type="text"
-            placeholder="Search by name, email, or batch..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition"
-          />
-        </div>
-
-        <div>
-          <select
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
-            className="w-full px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-300 focus:outline-none focus:border-zinc-500 transition cursor-pointer"
+    <div>
+      <PageHeader
+        title="Accounts"
+        subtitle="Every account is created here. There is no public sign-up."
+        actions={
+          <Button
+            onClick={() => {
+              setFormError('');
+              setIsCreateModalOpen(true);
+            }}
           >
-            <option value="ALL">All Roles</option>
-            <option value="STUDENT">Students</option>
-            <option value="FACULTY">Faculty</option>
-            <option value="ADMIN">Administrators</option>
-          </select>
-        </div>
+            <UserPlus className="h-4 w-4" aria-hidden="true" />
+            New account
+          </Button>
+        }
+      />
 
-        <div>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-300 focus:outline-none focus:border-zinc-500 transition cursor-pointer"
-          >
-            <option value="ALL">All Statuses</option>
-            <option value="ACTIVE">Active Only</option>
-            <option value="DEACTIVATED">Deactivated Only</option>
-          </select>
-        </div>
+      <div className="mb-6 space-y-3" aria-live="polite">
+        {successMessage && <Alert tone="success">{successMessage}</Alert>}
+        {error && <Alert tone="error">{error}</Alert>}
       </div>
 
-      {/* User Table */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden shadow-sm">
-        {loading ? (
-          <div className="py-20 flex flex-col items-center justify-center space-y-2.5">
-            <Loader2 className="w-6 h-6 text-zinc-400 animate-spin" />
-            <p className="text-xs text-zinc-500 font-mono">Loading user directory...</p>
+      <Sheet className="mb-6 grid grid-cols-3 divide-paper-line sm:grid-cols-5 sm:divide-x">
+        <Figure className="px-5 py-4" label="Accounts" value={counts.total} />
+        <Figure className="px-5 py-4" label="Students" value={counts.STUDENT} />
+        <Figure className="px-5 py-4" label="Faculty" value={counts.FACULTY} />
+        <Figure className="px-5 py-4" label="Admins" value={counts.ADMIN} />
+        <Figure className="px-5 py-4" label="Deactivated" value={counts.inactive} tone={counts.inactive > 0 ? 'text-ink-soft' : undefined} />
+      </Sheet>
+
+      <Sheet aria-labelledby="users-heading">
+        <SheetHeader title={<span id="users-heading">Directory</span>} meta={loading ? '' : `${filteredUsers.length} of ${users.length}`} />
+        <div className="grid gap-3 border-b border-paper-line px-4 py-4 sm:grid-cols-[minmax(0,1fr)_11rem_11rem] sm:px-5">
+          <div className="relative">
+            <label htmlFor="user-search" className="sr-only">
+              Search accounts
+            </label>
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" aria-hidden="true" />
+            <Input
+              id="user-search"
+              type="search"
+              className="pl-9"
+              placeholder="Name, email or batch"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
+          <div>
+            <label htmlFor="user-role" className="sr-only">
+              Role
+            </label>
+            <Select id="user-role" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
+              <option value="ALL">All roles</option>
+              <option value="STUDENT">Students</option>
+              <option value="FACULTY">Faculty</option>
+              <option value="ADMIN">Admins</option>
+            </Select>
+          </div>
+          <div>
+            <label htmlFor="user-status" className="sr-only">
+              Status
+            </label>
+            <Select id="user-status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              <option value="ALL">Any status</option>
+              <option value="ACTIVE">Active</option>
+              <option value="DEACTIVATED">Deactivated</option>
+            </Select>
+          </div>
+        </div>
+
+        {loading ? (
+          <Spinner label="Loading accounts" />
+        ) : filteredUsers.length === 0 ? (
+          <EmptyNotice title="No accounts match" icon={Users}>
+            Try a different name, role or status.
+          </EmptyNotice>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-zinc-300">
-              <thead className="bg-zinc-950 text-[10px] uppercase font-mono tracking-wider text-zinc-500 border-b border-zinc-800">
-                <tr>
-                  <th className="px-5 py-3 font-medium">User</th>
-                  <th className="px-5 py-3 font-medium">Role</th>
-                  <th className="px-5 py-3 font-medium">Cohort</th>
-                  <th className="px-5 py-3 font-medium">Enrolled</th>
-                  <th className="px-5 py-3 font-medium">Status</th>
-                  <th className="px-5 py-3 font-medium text-right">Access Toggle</th>
+            <table className="w-full min-w-[46rem] text-left">
+              <thead>
+                <tr className="caps border-b-2 border-ink text-[12px] text-ink-faint">
+                  <th scope="col" className="px-5 py-2.5 font-bold">Name</th>
+                  <th scope="col" className="px-3 py-2.5 font-bold">Role</th>
+                  <th scope="col" className="px-3 py-2.5 font-bold">Batch</th>
+                  <th scope="col" className="px-3 py-2.5 font-bold">Activity</th>
+                  <th scope="col" className="px-3 py-2.5 font-bold">Status</th>
+                  <th scope="col" className="px-5 py-2.5 text-right font-bold">
+                    <span className="sr-only">Actions</span>
+                  </th>
                 </tr>
               </thead>
-
-              <tbody className="divide-y divide-zinc-800/60">
-                {filteredUsers.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-5 py-10 text-center text-zinc-500">
-                      No accounts matching your query.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredUsers.map((u) => {
-                    const isSelf = u.id === currentUser?.userId;
-
-                    return (
-                      <tr key={u.id} className="hover:bg-zinc-850/40 transition select-none">
-                        <td className="px-5 py-3.5">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-7 h-7 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center text-xs font-semibold text-zinc-300 shrink-0">
-                              {u.name.charAt(0).toUpperCase()}
-                            </div>
-                            <div>
-                              <div className="font-medium text-zinc-200 flex items-center gap-1.5">
-                                <span>{u.name}</span>
-                                {isSelf && (
-                                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-400 font-mono">
-                                    You
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-[11px] text-zinc-500">{u.email}</div>
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="px-5 py-3.5">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-mono border bg-zinc-800 text-zinc-300 border-zinc-700">
-                            {u.role}
-                          </span>
-                        </td>
-
-                        <td className="px-5 py-3.5 font-mono text-zinc-400">
-                          {u.batch || '—'}
-                        </td>
-
-                        <td className="px-5 py-3.5 text-zinc-400 font-mono text-[11px]">
-                          {new Date(u.createdAt).toLocaleDateString([], {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric'
-                          })}
-                        </td>
-
-                        <td className="px-5 py-3.5">
-                          {u.isActive ? (
-                            <span className="inline-flex items-center gap-1.5 text-emerald-400 text-xs font-medium">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                              Active
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 text-zinc-500 text-xs">
-                              <span className="w-1.5 h-1.5 rounded-full bg-zinc-600" />
-                              Deactivated
-                            </span>
-                          )}
-                        </td>
-
-                        <td className="px-5 py-3.5 text-right">
-                          {/* Minimalist Switch Toggle */}
-                          <button
-                            disabled={isSelf}
-                            onClick={() => handleToggleStatus(u)}
-                            title={isSelf ? 'Cannot deactivate self' : u.isActive ? 'Deactivate account' : 'Activate account'}
-                            className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 ease-in-out cursor-pointer inline-flex items-center ${
-                              isSelf
-                                ? 'opacity-30 pointer-events-none bg-zinc-800'
-                                : u.isActive
-                                ? 'bg-zinc-100'
-                                : 'bg-zinc-800'
-                            }`}
-                          >
-                            <span
-                              className={`w-4 h-4 rounded-full shadow-sm transform transition-transform duration-200 ease-in-out ${
-                                u.isActive
-                                  ? 'translate-x-4 bg-zinc-950'
-                                  : 'translate-x-0 bg-zinc-400'
-                              }`}
-                            />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
+              <tbody>
+                {filteredUsers.map((u) => {
+                  const isSelf = u.id === currentUser?.userId;
+                  return (
+                    <tr key={u.id} className="rule-b last:border-b-0">
+                      <td className="px-5 py-3.5">
+                        <div className={u.isActive ? 'font-bold text-ink' : 'font-bold text-ink-faint line-through'}>
+                          {u.name}
+                          {isSelf && <span className="ml-2 text-sm font-normal text-ink-faint no-underline">(you)</span>}
+                        </div>
+                        <div className="text-sm text-ink-faint">{u.email}</div>
+                      </td>
+                      <td className="px-3 py-3.5 text-[15px] text-ink-soft">{ROLE_LABEL[u.role] || u.role}</td>
+                      <td className="num px-3 py-3.5 text-[15px] text-ink-soft">{u.batch || '—'}</td>
+                      <td className="num px-3 py-3.5 text-sm text-ink-soft">
+                        {u.role === 'STUDENT'
+                          ? `${u._count?.attempts ?? 0} attempts`
+                          : `${u._count?.examsCreated ?? 0} exams`}
+                        <div className="text-ink-faint">since {fmtDate(u.createdAt)}</div>
+                      </td>
+                      <td className="px-3 py-3.5">
+                        <Stamp status={u.isActive ? 'ACTIVE' : 'INACTIVE'} />
+                      </td>
+                      <td className="px-5 py-3.5 text-right">
+                        {!isSelf && (
+                          <Button size="sm" variant={u.isActive ? 'danger' : 'secondary'} onClick={() => requestToggle(u)}>
+                            {u.isActive ? 'Deactivate' : 'Reactivate'}
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
-      </div>
+      </Sheet>
 
-      {/* Create Account Modal */}
-      {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
-            <div className="p-4 sm:p-5 border-b border-zinc-800 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-zinc-100">
-                Create User Account
-              </h2>
-
-              <button
-                onClick={() => setIsCreateModalOpen(false)}
-                className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateUser} className="p-5 space-y-3.5">
-              {error && (
-                <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs rounded-lg flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{error}</span>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-1">Full Name *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Elena Rostova"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-1">Email Address *</label>
-                <input
-                  type="email"
-                  required
-                  placeholder="e.g. elena@institution.edu"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-1">Initial Password *</label>
-                <input
-                  type="password"
-                  required
-                  placeholder="Minimum 8 characters"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-zinc-300 mb-1">Role *</label>
-                  <select
-                    value={formData.role}
-                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                    className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-zinc-200 focus:outline-none focus:border-zinc-500 cursor-pointer"
-                  >
-                    <option value="STUDENT">Student</option>
-                    <option value="FACULTY">Faculty</option>
-                    <option value="ADMIN">Administrator</option>
-                  </select>
-                </div>
-
-                {formData.role === 'STUDENT' && (
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-300 mb-1">Cohort / Batch *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. CS-2026-A"
-                      value={formData.batch}
-                      onChange={(e) => setFormData({ ...formData, batch: e.target.value })}
-                      className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500"
-                    />
-                  </div>
-                )}
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-800">
-                <button
-                  type="button"
-                  onClick={() => setIsCreateModalOpen(false)}
-                  className="px-3 py-1.5 bg-zinc-850 hover:bg-zinc-800 text-zinc-300 text-xs font-medium rounded-lg transition cursor-pointer"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-4 py-1.5 bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1.5 shadow-sm"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>Creating...</span>
-                    </>
-                  ) : (
-                    <span>Create User</span>
-                  )}
-                </button>
-              </div>
-            </form>
+      {/* Create account */}
+      <Dialog
+        open={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        title="New account"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setIsCreateModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" form="create-user-form" loading={isSubmitting}>
+              {isSubmitting ? 'Creating…' : 'Create account'}
+            </Button>
+          </>
+        }
+      >
+        <form id="create-user-form" onSubmit={handleCreateUser} className="space-y-4" noValidate>
+          {formError && <Alert tone="error">{formError}</Alert>}
+          <Field label="Full name" required>
+            <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} autoComplete="off" />
+          </Field>
+          <Field label="Email" required hint="Sign-in codes are sent here, so it must be a real inbox.">
+            <Input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} autoComplete="off" />
+          </Field>
+          <Field label="Starting password" required hint="At least 8 characters. Ask them to change it from their profile.">
+            <Input type="password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} autoComplete="new-password" />
+          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Role">
+              <Select value={formData.role} onChange={(e) => setFormData({ ...formData, role: e.target.value })}>
+                <option value="STUDENT">Student</option>
+                <option value="FACULTY">Faculty</option>
+                <option value="ADMIN">Administrator</option>
+              </Select>
+            </Field>
+            {formData.role === 'STUDENT' && (
+              <Field label="Batch" required>
+                <Input value={formData.batch} onChange={(e) => setFormData({ ...formData, batch: e.target.value })} placeholder="CS-2026-A" />
+              </Field>
+            )}
           </div>
-        </div>
-      )}
+        </form>
+      </Dialog>
+
+      {/* Activate / deactivate */}
+      <Dialog
+        open={!!pendingToggle}
+        onClose={() => setPendingToggle(null)}
+        title={pendingToggle?.isActive ? 'Deactivate this account?' : 'Reactivate this account?'}
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setPendingToggle(null)}>
+              Cancel
+            </Button>
+            <Button variant={pendingToggle?.isActive ? 'danger' : 'primary'} loading={isToggling} onClick={confirmToggle}>
+              {pendingToggle?.isActive ? 'Deactivate' : 'Reactivate'}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-[15px] text-ink">
+          <strong>{pendingToggle?.name}</strong> · {pendingToggle?.email}
+        </p>
+        <p className="mt-2 text-sm text-ink-soft">
+          {pendingToggle?.isActive
+            ? 'They will be signed out within 15 minutes and cannot sign in again until reactivated. Their exam records are kept.'
+            : 'They will be able to sign in again with their existing password.'}
+        </p>
+      </Dialog>
     </div>
   );
 };

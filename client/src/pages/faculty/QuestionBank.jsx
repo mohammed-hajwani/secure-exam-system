@@ -1,49 +1,85 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { BookOpen, Check, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import api from '../../services/api';
-import {
-  Plus,
-  BookOpen,
-  Search,
-  CheckCircle2,
-  Trash2,
-  Edit2,
-  AlertCircle,
-  Loader2,
-  X,
-  Eye,
-  FileText
-} from 'lucide-react';
+import { Alert, Button, Dialog, EmptyNotice, Field, Input, PageHeader, Select, Sheet, SheetHeader, Spinner, Stamp, Textarea, cx } from '../../components/ui';
+
+const TYPE_LABEL = { MCQ: 'Multiple choice', TRUE_FALSE: 'True / false', SHORT_ANSWER: 'Short answer' };
+
+const blankOptions = () => [
+  { text: '', isCorrect: true },
+  { text: '', isCorrect: false },
+  { text: '', isCorrect: false },
+  { text: '', isCorrect: false }
+];
+
+const EMPTY_FORM = { subject: '', type: 'MCQ', text: '', marks: 1, options: blankOptions() };
+
+/* What a student will see, live while authoring */
+const StudentPreview = ({ formData }) => {
+  const opts = formData.options.filter((o) => o.text.trim());
+  return (
+    <div className="rounded-[4px] border border-paper-line bg-paper-tint p-4">
+      <div className="flex items-baseline justify-between gap-2 border-b border-paper-line pb-2">
+        <span className="display text-2xl text-ink">Q1</span>
+        <span className="num text-sm text-ink-faint">
+          {formData.marks || 1} mark{Number(formData.marks) === 1 ? '' : 's'}
+        </span>
+      </div>
+      <p className="mt-3 whitespace-pre-wrap text-[15px] font-semibold leading-relaxed text-ink">
+        {formData.text || <span className="font-normal text-ink-faint">Your question appears here.</span>}
+      </p>
+      <div className="mt-3 space-y-2">
+        {formData.type === 'SHORT_ANSWER' ? (
+          <div className="h-20 rounded-[4px] border border-paper-rule bg-paper" aria-hidden="true" />
+        ) : opts.length === 0 ? (
+          <p className="text-sm text-ink-faint">Options appear here.</p>
+        ) : (
+          opts.map((opt, i) => (
+            <div key={i} className="flex items-center gap-3 rounded-[4px] border border-paper-rule bg-paper px-3 py-2">
+              <span className="caps flex h-6 w-6 shrink-0 items-center justify-center rounded-[3px] border border-ink-faint/60 text-[12px] text-ink-soft">
+                {String.fromCharCode(65 + i)}
+              </span>
+              <span className="flex-1 text-[15px] text-ink">{opt.text}</span>
+              {opt.isCorrect && (
+                <span className="caps text-[11px] text-ink" title="Students never see this">
+                  Key
+                </span>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+      <p className="mt-3 text-sm text-ink-faint">
+        {formData.type === 'MCQ' ? 'Options are shuffled for each student. ' : formData.type === 'TRUE_FALSE' ? 'True / false keeps its order. ' : ''}
+        The answer key is never sent to their browser.
+      </p>
+    </div>
+  );
+};
 
 const QuestionBank = () => {
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [formError, setFormError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
-  // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [subjectFilter, setSubjectFilter] = useState('ALL');
   const [typeFilter, setTypeFilter] = useState('ALL');
 
-  // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [previewMode, setPreviewMode] = useState(false);
+  const [formData, setFormData] = useState(EMPTY_FORM);
 
-  // Form state
-  const [formData, setFormData] = useState({
-    subject: '',
-    type: 'MCQ',
-    text: '',
-    marks: 1,
-    options: [
-      { text: '', isCorrect: true },
-      { text: '', isCorrect: false },
-      { text: '', isCorrect: false },
-      { text: '', isCorrect: false }
-    ]
-  });
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const flash = (msg) => {
+    setSuccessMessage(msg);
+    setTimeout(() => setSuccessMessage(''), 4000);
+  };
 
   const fetchQuestions = async () => {
     try {
@@ -51,7 +87,7 @@ const QuestionBank = () => {
       const response = await api.get('/questions');
       setQuestions(response.data?.data || []);
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to load question bank');
+      setError(err.response?.data?.error || 'Could not load the question bank.');
     } finally {
       setLoading(false);
     }
@@ -64,20 +100,9 @@ const QuestionBank = () => {
   const subjects = ['ALL', ...new Set(questions.map((q) => q.subject).filter(Boolean))];
 
   const resetForm = () => {
-    setFormData({
-      subject: '',
-      type: 'MCQ',
-      text: '',
-      marks: 1,
-      options: [
-        { text: '', isCorrect: true },
-        { text: '', isCorrect: false },
-        { text: '', isCorrect: false },
-        { text: '', isCorrect: false }
-      ]
-    });
+    setFormData({ ...EMPTY_FORM, options: blankOptions() });
     setEditingQuestion(null);
-    setPreviewMode(false);
+    setFormError('');
   };
 
   const handleOpenCreate = () => {
@@ -87,7 +112,7 @@ const QuestionBank = () => {
 
   const handleOpenEdit = (q) => {
     setEditingQuestion(q);
-    setPreviewMode(false);
+    setFormError('');
     setFormData({
       subject: q.subject,
       type: q.type,
@@ -104,51 +129,51 @@ const QuestionBank = () => {
     setIsModalOpen(true);
   };
 
-  const handleOptionChange = (index, field, value) => {
-    const next = [...formData.options];
-    if (field === 'isCorrect') {
-      next.forEach((opt, idx) => {
-        opt.isCorrect = idx === index;
-      });
-    } else {
-      next[index][field] = value;
-    }
-    setFormData({ ...formData, options: next });
-  };
+  const setCorrect = (index) =>
+    setFormData((prev) => ({ ...prev, options: prev.options.map((o, i) => ({ ...o, isCorrect: i === index })) }));
 
-  const addOption = () => {
-    setFormData({
-      ...formData,
-      options: [...formData.options, { text: '', isCorrect: false }]
+  const setOptionText = (index, text) =>
+    setFormData((prev) => ({ ...prev, options: prev.options.map((o, i) => (i === index ? { ...o, text } : o)) }));
+
+  const addOption = () => setFormData((prev) => ({ ...prev, options: [...prev.options, { text: '', isCorrect: false }] }));
+
+  const removeOption = (index) =>
+    setFormData((prev) => {
+      if (prev.options.length <= 2) return prev;
+      const next = prev.options.filter((_, i) => i !== index);
+      if (!next.some((o) => o.isCorrect)) next[0] = { ...next[0], isCorrect: true };
+      return { ...prev, options: next };
     });
-  };
 
-  const removeOption = (index) => {
-    if (formData.options.length <= 2) return;
-    const next = formData.options.filter((_, idx) => idx !== index);
-    if (!next.some((o) => o.isCorrect)) {
-      next[0].isCorrect = true;
+  const changeType = (newType) => {
+    let opts = formData.options;
+    if (newType === 'TRUE_FALSE') {
+      opts = [
+        { text: 'True', isCorrect: true },
+        { text: 'False', isCorrect: false }
+      ];
+    } else if (newType === 'MCQ' && opts.length < 4) {
+      opts = blankOptions();
     }
-    setFormData({ ...formData, options: next });
+    setFormData({ ...formData, type: newType, options: opts });
   };
 
   const handleSaveQuestion = async (e) => {
     e.preventDefault();
-    setError('');
+    setFormError('');
 
     if (!formData.subject.trim() || !formData.text.trim()) {
-      setError('Please provide both subject and question prompt');
+      setFormError('Add a subject and the question text.');
       return;
     }
-
     if (formData.type !== 'SHORT_ANSWER') {
       const validOptions = formData.options.filter((o) => o.text.trim() !== '');
       if (validOptions.length < 2) {
-        setError('Please provide at least 2 valid option choices');
+        setFormError('Write at least two options.');
         return;
       }
       if (!validOptions.some((o) => o.isCorrect)) {
-        setError('Please designate one option as the correct answer key');
+        setFormError('Mark which option is correct.');
         return;
       }
     }
@@ -160,481 +185,305 @@ const QuestionBank = () => {
         type: formData.type,
         text: formData.text.trim(),
         marks: Number(formData.marks) || 1,
-        options:
-          formData.type !== 'SHORT_ANSWER'
-            ? formData.options.filter((o) => o.text.trim() !== '')
-            : []
+        options: formData.type !== 'SHORT_ANSWER' ? formData.options.filter((o) => o.text.trim() !== '') : []
       };
 
       if (editingQuestion) {
-        await api.put(`/questions/${editingQuestion.id}`, payload);
-        setSuccessMessage('Question updated successfully');
+        await api.patch(`/questions/${editingQuestion.id}`, payload);
+        flash('Question updated.');
       } else {
         await api.post('/questions', payload);
-        setSuccessMessage('Question authored and saved to bank');
+        flash('Question added to your bank.');
       }
-
       setIsModalOpen(false);
       resetForm();
       fetchQuestions();
-      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to save question');
+      setFormError(err.response?.data?.error || 'Could not save the question.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this question permanently from the question bank?')) {
-      return;
-    }
-
+  const handleConfirmDelete = async () => {
+    if (!pendingDelete) return;
+    setError('');
     try {
-      await api.delete(`/questions/${id}`);
-      setSuccessMessage('Question deleted successfully');
+      setIsDeleting(true);
+      await api.delete(`/questions/${pendingDelete.id}`);
+      flash('Question deleted.');
+      setPendingDelete(null);
       fetchQuestions();
-      setTimeout(() => setSuccessMessage(''), 3000);
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to delete question');
-      setTimeout(() => setError(''), 3000);
+      setError(err.response?.data?.error || 'Could not delete the question.');
+      setPendingDelete(null);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
   const filteredQuestions = questions.filter((q) => {
-    const matchesSearch =
-      q.text.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      q.subject.toLowerCase().includes(searchQuery.toLowerCase());
+    const s = searchQuery.toLowerCase();
+    const matchesSearch = q.text.toLowerCase().includes(s) || q.subject.toLowerCase().includes(s);
     const matchesSubject = subjectFilter === 'ALL' || q.subject === subjectFilter;
     const matchesType = typeFilter === 'ALL' || q.type === typeFilter;
     return matchesSearch && matchesSubject && matchesType;
   });
+  const filtersActive = searchQuery || subjectFilter !== 'ALL' || typeFilter !== 'ALL';
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-4 border-b border-zinc-800/80 pb-6">
-        <div>
-          <h1 className="text-xl font-semibold text-zinc-100 tracking-tight">
-            Question Bank
-          </h1>
-          <p className="text-xs text-zinc-400 mt-0.5">
-            Create and maintain your reusable question repository
-          </p>
-        </div>
+    <div>
+      <PageHeader
+        title="Question bank"
+        subtitle="Write questions once and reuse them across exams. Students never receive the answer key."
+        actions={
+          <Button onClick={handleOpenCreate}>
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            New question
+          </Button>
+        }
+      />
 
-        <button
-          onClick={handleOpenCreate}
-          className="px-4 py-2 bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          <span>New Question</span>
-        </button>
+      <div className="mb-6 space-y-3" aria-live="polite">
+        {successMessage && <Alert tone="success">{successMessage}</Alert>}
+        {error && <Alert tone="error">{error}</Alert>}
       </div>
 
-      {/* Notifications */}
-      {successMessage && (
-        <div className="p-3 bg-zinc-900 border border-zinc-700 text-zinc-200 text-xs rounded-lg flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-          <span>{successMessage}</span>
-        </div>
-      )}
-
-      {error && !isModalOpen && (
-        <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs rounded-lg flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
-
-      {/* Filters */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="relative">
-          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-          <input
-            type="text"
-            placeholder="Search questions by text or subject..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition"
-          />
-        </div>
-
-        <div>
-          <select
-            value={subjectFilter}
-            onChange={(e) => setSubjectFilter(e.target.value)}
-            className="w-full px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-300 focus:outline-none focus:border-zinc-500 transition cursor-pointer"
-          >
-            {subjects.map((sub) => (
-              <option key={sub} value={sub}>
-                {sub === 'ALL' ? 'All Subjects' : sub}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <select
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-            className="w-full px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-300 focus:outline-none focus:border-zinc-500 transition cursor-pointer"
-          >
-            <option value="ALL">All Formats</option>
-            <option value="MCQ">Multiple Choice (MCQ)</option>
-            <option value="TRUE_FALSE">True / False</option>
-            <option value="SHORT_ANSWER">Short Answer</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Questions List */}
-      {loading ? (
-        <div className="py-20 flex flex-col items-center justify-center space-y-2.5">
-          <Loader2 className="w-6 h-6 text-zinc-400 animate-spin" />
-          <p className="text-xs text-zinc-500">Loading question repository...</p>
-        </div>
-      ) : filteredQuestions.length === 0 ? (
-        <div className="text-center py-16 px-4 border border-zinc-800/80 rounded-xl bg-zinc-900/30">
-          <BookOpen className="w-10 h-10 text-zinc-600 mx-auto mb-2.5" />
-          <h3 className="text-sm font-medium text-zinc-200">No questions found</h3>
-          <p className="text-xs text-zinc-500 mt-1 max-w-sm mx-auto">
-            {searchQuery || subjectFilter !== 'ALL' || typeFilter !== 'ALL'
-              ? 'Try adjusting your filters.'
-              : 'Add your first question to start building your examination bank.'}
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {filteredQuestions.map((q) => (
-            <div
-              key={q.id}
-              className="bg-zinc-900/80 border border-zinc-800/80 hover:border-zinc-700/80 rounded-xl p-4 sm:p-5 transition flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm"
-            >
-              <div className="space-y-2 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-mono font-medium uppercase px-2 py-0.5 rounded bg-zinc-800 text-zinc-300">
-                    {q.subject}
-                  </span>
-                  <span className="text-[10px] font-mono text-zinc-400">
-                    {q.type}
-                  </span>
-                  <span className="text-zinc-600">•</span>
-                  <span className="text-xs text-zinc-400">
-                    {q.marks} Mark{q.marks > 1 ? 's' : ''}
-                  </span>
-                </div>
-
-                <p className="text-xs text-zinc-200 leading-relaxed font-medium line-clamp-2">
-                  {q.text}
-                </p>
-
-                {q.options && q.options.length > 0 && (
-                  <div className="flex items-center gap-2 pt-1 overflow-x-auto">
-                    {q.options.map((opt, i) => (
-                      <span
-                        key={opt.id || i}
-                        className={`text-[11px] px-2 py-0.5 rounded border flex items-center gap-1 shrink-0 ${
-                          opt.isCorrect
-                            ? 'bg-zinc-800 border-zinc-600 text-zinc-200 font-medium'
-                            : 'bg-zinc-950 border-zinc-850 text-zinc-500'
-                        }`}
-                      >
-                        <span className="font-mono text-[9px] uppercase">
-                          {String.fromCharCode(65 + i)}:
-                        </span>
-                        <span className="truncate max-w-[120px]">{opt.text}</span>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
-                <button
-                  onClick={() => handleOpenEdit(q)}
-                  className="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition cursor-pointer"
-                  title="Edit question"
-                >
-                  <Edit2 className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => handleDelete(q.id)}
-                  className="p-1.5 text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition cursor-pointer"
-                  title="Delete question"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Authoring & Live Preview Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
-            {/* Modal Header */}
-            <div className="p-4 sm:p-5 border-b border-zinc-800 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h2 className="text-sm font-semibold text-zinc-100">
-                  {editingQuestion ? 'Edit Question' : 'Author New Question'}
-                </h2>
-
-                <div className="flex items-center p-0.5 bg-zinc-950 rounded-lg border border-zinc-800">
-                  <button
-                    type="button"
-                    onClick={() => setPreviewMode(false)}
-                    className={`px-2 py-0.5 text-[11px] font-medium rounded transition ${
-                      !previewMode ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:text-zinc-200'
-                    }`}
-                  >
-                    Editor
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPreviewMode(true)}
-                    className={`px-2 py-0.5 text-[11px] font-medium rounded transition flex items-center gap-1 ${
-                      previewMode ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:text-zinc-200'
-                    }`}
-                  >
-                    <Eye className="w-3 h-3" />
-                    <span>Student Preview</span>
-                  </button>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-5 overflow-y-auto flex-1 space-y-4">
-              {error && (
-                <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs rounded-lg flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{error}</span>
-                </div>
-              )}
-
-              {previewMode ? (
-                /* Student Live Preview Card */
-                <div className="p-5 bg-zinc-950 border border-zinc-800 rounded-xl space-y-4">
-                  <div className="flex items-center justify-between border-b border-zinc-800/80 pb-2">
-                    <span className="text-xs font-semibold text-zinc-200">
-                      Sample Question • {formData.marks} Mark{formData.marks > 1 ? 's' : ''}
-                    </span>
-                    <span className="text-[10px] font-mono uppercase bg-zinc-900 px-2 py-0.5 rounded text-zinc-400">
-                      {formData.subject || 'Subject'}
-                    </span>
-                  </div>
-
-                  <p className="text-xs font-medium text-zinc-100 leading-relaxed whitespace-pre-wrap">
-                    {formData.text || 'Enter a question prompt in editor to preview...'}
-                  </p>
-
-                  <div className="space-y-2 pt-1">
-                    {formData.type === 'SHORT_ANSWER' ? (
-                      <textarea
-                        disabled
-                        rows={3}
-                        placeholder="Student text response box..."
-                        className="w-full p-3 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-500"
-                      />
-                    ) : (
-                      formData.options
-                        .filter((o) => o.text.trim())
-                        .map((opt, i) => (
-                          <div
-                            key={i}
-                            className={`flex items-start gap-2.5 p-3 rounded-lg border text-xs ${
-                              opt.isCorrect
-                                ? 'bg-zinc-800/80 border-zinc-600 text-zinc-100'
-                                : 'bg-zinc-900/40 border-zinc-800 text-zinc-400'
-                            }`}
-                          >
-                            <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-700">
-                              {String.fromCharCode(65 + i)}
-                            </span>
-                            <span className="flex-1">{opt.text}</span>
-                            {opt.isCorrect && (
-                              <span className="text-[10px] font-mono text-emerald-400">
-                                (Correct Key)
-                              </span>
-                            )}
-                          </div>
-                        ))
-                    )}
-                  </div>
-                </div>
-              ) : (
-                /* Editor Form */
-                <form id="question-form" onSubmit={handleSaveQuestion} className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-zinc-300 mb-1">Subject *</label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. Algorithms"
-                        value={formData.subject}
-                        onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                        className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-zinc-300 mb-1">Format</label>
-                      <select
-                        value={formData.type}
-                        onChange={(e) => {
-                          const newType = e.target.value;
-                          let opts = formData.options;
-                          if (newType === 'TRUE_FALSE') {
-                            opts = [
-                              { text: 'True', isCorrect: true },
-                              { text: 'False', isCorrect: false }
-                            ];
-                          } else if (newType === 'MCQ' && opts.length < 4) {
-                            opts = [
-                              { text: '', isCorrect: true },
-                              { text: '', isCorrect: false },
-                              { text: '', isCorrect: false },
-                              { text: '', isCorrect: false }
-                            ];
-                          }
-                          setFormData({ ...formData, type: newType, options: opts });
-                        }}
-                        className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-zinc-200 focus:outline-none focus:border-zinc-500 cursor-pointer"
-                      >
-                        <option value="MCQ">Multiple Choice</option>
-                        <option value="TRUE_FALSE">True / False</option>
-                        <option value="SHORT_ANSWER">Short Answer</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-zinc-300 mb-1">Marks</label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="100"
-                        value={formData.marks}
-                        onChange={(e) => setFormData({ ...formData, marks: Number(e.target.value) })}
-                        className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-zinc-100 focus:outline-none focus:border-zinc-500"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-zinc-300 mb-1">
-                      Question Prompt *
-                    </label>
-                    <textarea
-                      rows={3}
-                      required
-                      placeholder="Write your question statement here..."
-                      value={formData.text}
-                      onChange={(e) => setFormData({ ...formData, text: e.target.value })}
-                      className="w-full p-3 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 leading-relaxed"
-                    />
-                  </div>
-
-                  {formData.type !== 'SHORT_ANSWER' && (
-                    <div className="space-y-2 pt-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-medium text-zinc-300">
-                          Answer Options (Select the correct key)
-                        </label>
-                        {formData.type === 'MCQ' && formData.options.length < 6 && (
-                          <button
-                            type="button"
-                            onClick={addOption}
-                            className="text-[11px] text-zinc-400 hover:text-zinc-200 transition flex items-center gap-1 cursor-pointer"
-                          >
-                            <Plus className="w-3 h-3" />
-                            Add Option
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="space-y-2">
-                        {formData.options.map((opt, index) => (
-                          <div key={index} className="flex items-center gap-2">
-                            <input
-                              type="radio"
-                              name="correctOption"
-                              checked={opt.isCorrect}
-                              onChange={() => handleOptionChange(index, 'isCorrect', true)}
-                              className="w-4 h-4 text-zinc-900 bg-zinc-950 border-zinc-700 cursor-pointer"
-                              title="Set as correct answer"
-                            />
-
-                            <span className="w-5 text-center font-mono text-[10px] text-zinc-500">
-                              {String.fromCharCode(65 + index)}
-                            </span>
-
-                            <input
-                              type="text"
-                              required
-                              placeholder={`Option ${String.fromCharCode(65 + index)}`}
-                              value={opt.text}
-                              onChange={(e) => handleOptionChange(index, 'text', e.target.value)}
-                              className="flex-1 px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500"
-                            />
-
-                            {formData.type === 'MCQ' && formData.options.length > 2 && (
-                              <button
-                                type="button"
-                                onClick={() => removeOption(index)}
-                                className="p-1.5 text-zinc-500 hover:text-rose-400 transition cursor-pointer"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </form>
-              )}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="p-4 border-t border-zinc-800 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                className="px-3 py-1.5 bg-zinc-850 hover:bg-zinc-800 text-zinc-300 text-xs font-medium rounded-lg transition cursor-pointer"
-              >
-                Cancel
-              </button>
-
-              <button
-                form="question-form"
-                type="submit"
-                disabled={isSubmitting}
-                className="px-4 py-1.5 bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1.5 shadow-sm"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Saving...</span>
-                  </>
-                ) : (
-                  <span>{editingQuestion ? 'Update Question' : 'Save to Bank'}</span>
-                )}
-              </button>
-            </div>
+      <Sheet aria-labelledby="bank-heading">
+        <SheetHeader
+          title={<span id="bank-heading">Questions</span>}
+          meta={loading ? '' : `${filteredQuestions.length} of ${questions.length}`}
+        />
+        <div className="grid gap-3 border-b border-paper-line px-4 py-4 sm:grid-cols-[minmax(0,1fr)_12rem_12rem] sm:px-5">
+          <div className="relative">
+            <label htmlFor="bank-search" className="sr-only">
+              Search questions
+            </label>
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" aria-hidden="true" />
+            <Input
+              id="bank-search"
+              type="search"
+              className="pl-9"
+              placeholder="Search text or subject"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <div>
+            <label htmlFor="bank-subject" className="sr-only">
+              Subject
+            </label>
+            <Select id="bank-subject" value={subjectFilter} onChange={(e) => setSubjectFilter(e.target.value)}>
+              {subjects.map((sub) => (
+                <option key={sub} value={sub}>
+                  {sub === 'ALL' ? 'All subjects' : sub}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <label htmlFor="bank-type" className="sr-only">
+              Format
+            </label>
+            <Select id="bank-type" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+              <option value="ALL">All formats</option>
+              <option value="MCQ">Multiple choice</option>
+              <option value="TRUE_FALSE">True / false</option>
+              <option value="SHORT_ANSWER">Short answer</option>
+            </Select>
           </div>
         </div>
-      )}
+
+        {loading ? (
+          <Spinner label="Loading questions" />
+        ) : filteredQuestions.length === 0 ? (
+          <EmptyNotice
+            title={filtersActive ? 'Nothing matches' : 'Your bank is empty'}
+            icon={BookOpen}
+            action={
+              !filtersActive && (
+                <Button onClick={handleOpenCreate}>
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  New question
+                </Button>
+              )
+            }
+          >
+            {filtersActive ? 'Try a different search, subject or format.' : 'Add your first question to start building exams.'}
+          </EmptyNotice>
+        ) : (
+          <ol>
+            {filteredQuestions.map((q) => (
+              <li key={q.id} className="rule-b grid gap-3 px-4 py-5 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:px-5">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Stamp status="NEUTRAL">{q.subject}</Stamp>
+                    <Stamp status="MARK">{TYPE_LABEL[q.type]}</Stamp>
+                    <span className="num text-sm font-bold text-ink-soft">
+                      {q.marks} mark{q.marks === 1 ? '' : 's'}
+                    </span>
+                  </div>
+                  <p className="mt-2 line-clamp-3 max-w-[75ch] whitespace-pre-wrap text-[16px] font-semibold leading-snug text-ink">{q.text}</p>
+                  {q.options && q.options.length > 0 && (
+                    <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-[15px]">
+                      {q.options.map((opt, i) => (
+                        <li key={opt.id || i} className={cx('flex items-center gap-1.5', opt.isCorrect ? 'font-bold text-ink' : 'text-ink-soft')}>
+                          <span className="caps text-[12px]">{String.fromCharCode(65 + i)}</span>
+                          <span className="max-w-[16rem] truncate">{opt.text}</span>
+                          {opt.isCorrect && (
+                            <>
+                              <Check className="h-4 w-4" strokeWidth={3} aria-hidden="true" />
+                              <span className="sr-only">(correct answer)</span>
+                            </>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div className="flex items-start gap-1 sm:justify-end">
+                  <Button size="sm" variant="secondary" onClick={() => handleOpenEdit(q)}>
+                    <Pencil className="h-4 w-4" aria-hidden="true" />
+                    Edit
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setPendingDelete(q)} aria-label="Delete question" title="Delete question">
+                    <Trash2 className="h-4 w-4" aria-hidden="true" />
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
+      </Sheet>
+
+      {/* Author / edit */}
+      <Dialog
+        open={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={editingQuestion ? 'Edit question' : 'New question'}
+        size="xl"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setIsModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" form="question-form" loading={isSubmitting}>
+              {isSubmitting ? 'Saving…' : editingQuestion ? 'Save changes' : 'Add to bank'}
+            </Button>
+          </>
+        }
+      >
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+          <form id="question-form" onSubmit={handleSaveQuestion} className="space-y-4" noValidate>
+            {formError && <Alert tone="error">{formError}</Alert>}
+            <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_11rem_7rem]">
+              <Field label="Subject" required>
+                <Input value={formData.subject} onChange={(e) => setFormData({ ...formData, subject: e.target.value })} placeholder="Algorithms" />
+              </Field>
+              <Field label="Format">
+                <Select value={formData.type} onChange={(e) => changeType(e.target.value)}>
+                  <option value="MCQ">Multiple choice</option>
+                  <option value="TRUE_FALSE">True / false</option>
+                  <option value="SHORT_ANSWER">Short answer</option>
+                </Select>
+              </Field>
+              <Field label="Marks">
+                <Input
+                  type="number"
+                  min="1"
+                  max="100"
+                  className="num"
+                  value={formData.marks}
+                  onChange={(e) => setFormData({ ...formData, marks: Number(e.target.value) })}
+                />
+              </Field>
+            </div>
+            <Field label="Question" required>
+              <Textarea rows={4} value={formData.text} onChange={(e) => setFormData({ ...formData, text: e.target.value })} />
+            </Field>
+
+            {formData.type !== 'SHORT_ANSWER' && (
+              <fieldset>
+                <legend className="mb-2 text-sm font-semibold text-ink">Options · choose the correct one</legend>
+                <div className="space-y-2">
+                  {formData.options.map((opt, index) => {
+                    const letter = String.fromCharCode(65 + index);
+                    return (
+                      <div key={index} className="flex items-center gap-2">
+                        <label className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-[4px] border border-paper-rule hover:border-ink-faint">
+                          <input
+                            type="radio"
+                            name="correctOption"
+                            checked={opt.isCorrect}
+                            onChange={() => setCorrect(index)}
+                            className="h-4 w-4 accent-board"
+                          />
+                          <span className="sr-only">Option {letter} is correct</span>
+                        </label>
+                        <span className="caps w-4 text-center text-sm text-ink-faint" aria-hidden="true">
+                          {letter}
+                        </span>
+                        <label htmlFor={`opt-${index}`} className="sr-only">
+                          Option {letter}
+                        </label>
+                        <Input
+                          id={`opt-${index}`}
+                          value={opt.text}
+                          disabled={formData.type === 'TRUE_FALSE'}
+                          onChange={(e) => setOptionText(index, e.target.value)}
+                          placeholder={`Option ${letter}`}
+                          className={opt.isCorrect ? 'border-ink' : ''}
+                        />
+                        {formData.type === 'MCQ' && formData.options.length > 2 && (
+                          <Button type="button" variant="ghost" size="sm" onClick={() => removeOption(index)} aria-label={`Remove option ${letter}`}>
+                            <X className="h-4 w-4" aria-hidden="true" />
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                {formData.type === 'MCQ' && formData.options.length < 6 && (
+                  <Button type="button" variant="ghost" size="sm" className="mt-2" onClick={addOption}>
+                    <Plus className="h-4 w-4" aria-hidden="true" />
+                    Add option
+                  </Button>
+                )}
+              </fieldset>
+            )}
+          </form>
+
+          <section aria-labelledby="preview-heading">
+            <h3 id="preview-heading" className="caps mb-2 text-sm text-ink-faint">
+              What students see
+            </h3>
+            <StudentPreview formData={formData} />
+          </section>
+        </div>
+      </Dialog>
+
+      {/* Delete confirmation */}
+      <Dialog
+        open={!!pendingDelete}
+        onClose={() => setPendingDelete(null)}
+        title="Delete this question?"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setPendingDelete(null)}>
+              Keep it
+            </Button>
+            <Button variant="danger" loading={isDeleting} onClick={handleConfirmDelete}>
+              Delete question
+            </Button>
+          </>
+        }
+      >
+        <p className="line-clamp-3 text-[15px] text-ink">{pendingDelete?.text}</p>
+        <p className="mt-2 text-sm text-ink-soft">
+          Only questions that are not part of any exam can be deleted. Remove it from its exams first if it is in use.
+        </p>
+      </Dialog>
     </div>
   );
 };

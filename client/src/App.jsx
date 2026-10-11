@@ -16,11 +16,9 @@ import AdminLayout from './components/layout/AdminLayout';
 import UserManagement from './pages/admin/UserManagement';
 import AuditLogExplorer from './pages/admin/AuditLogExplorer';
 import Profile from './pages/Profile';
-import { Loader2 } from 'lucide-react';
-
-
-
-
+import Landing from './pages/Landing';
+import PracticeExam from './pages/PracticeExam';
+import { Spinner } from './components/ui';
 
 /**
  * Protected Route wrapper
@@ -31,11 +29,8 @@ const ProtectedRoute = ({ children }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-8 h-8 text-emerald-400 animate-spin" />
-          <p className="text-slate-400 text-sm">Verifying session...</p>
-        </div>
+      <div className="flex min-h-screen items-center justify-center">
+        <Spinner label="Checking your session" />
       </div>
     );
   }
@@ -55,8 +50,8 @@ const PublicRoute = ({ children }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">
-        <Loader2 className="w-8 h-8 text-emerald-400 animate-spin" />
+      <div className="flex min-h-screen items-center justify-center">
+        <Spinner label="Checking your session" />
       </div>
     );
   }
@@ -101,7 +96,6 @@ function App() {
             </ProtectedRoute>
           }
         />
-
 
         {/* Student Portal Routes */}
         <Route
@@ -166,8 +160,9 @@ function App() {
           <Route path="audit-logs" element={<AuditLogExplorer />} />
         </Route>
 
-        {/* Root Redirect */}
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        {/* Public landing page and browser-only practice paper */}
+        <Route path="/" element={<Landing />} />
+        <Route path="/practice" element={<PracticeExam />} />
 
         {/* Catch-all Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -175,8 +170,5 @@ function App() {
     </BrowserRouter>
   );
 }
-
-
-
 
 export default App;

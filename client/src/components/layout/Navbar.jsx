@@ -1,86 +1,116 @@
 import React from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, NavLink } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Shield, LogOut, User } from 'lucide-react';
+import { LogOut, ShieldCheck } from 'lucide-react';
+
+const NAV_BY_ROLE = {
+  STUDENT: [{ name: 'My timetable', path: '/student' }],
+  FACULTY: [
+    { name: 'Exams', path: '/faculty/exams' },
+    { name: 'Question bank', path: '/faculty/questions' }
+  ],
+  ADMIN: [
+    { name: 'Users', path: '/admin/users' },
+    { name: 'Audit log', path: '/admin/audit-logs' },
+    { name: 'Exams', path: '/faculty/exams' },
+    { name: 'Question bank', path: '/faculty/questions' }
+  ]
+};
+
+const ROLE_LABEL = { STUDENT: 'Student', FACULTY: 'Faculty', ADMIN: 'Administrator' };
+
+export const Wordmark = ({ to = '/dashboard', onBoard = true }) => (
+  <Link to={to} className={`group flex items-center gap-2 rounded-[3px] ${onBoard ? 'text-white' : 'text-ink'}`}>
+    <ShieldCheck className={`h-5 w-5 ${onBoard ? 'text-white' : 'text-board'}`} strokeWidth={2.25} aria-hidden="true" />
+    <span className="display text-[1.45rem] leading-none tracking-[0.01em]">ExamShield</span>
+  </Link>
+);
+
+const NavItems = ({ items, mobile }) =>
+  items.map((item) => (
+    <NavLink
+      key={item.path}
+      to={item.path}
+      end={item.path === '/student'}
+      className={({ isActive }) =>
+        mobile
+          ? `relative shrink-0 px-3 py-3 text-sm font-semibold ${isActive ? 'text-white' : 'text-board-ink'}`
+          : `relative flex items-center px-3 text-[15px] font-semibold transition-colors ${
+              isActive ? 'text-white' : 'text-board-ink hover:text-white'
+            }`
+      }
+    >
+      {({ isActive }) => (
+        <>
+          {item.name}
+          {isActive && <span className="absolute inset-x-2 bottom-0 h-[3px] rounded-t-[2px] bg-hl" aria-hidden="true" />}
+        </>
+      )}
+    </NavLink>
+  ));
 
 const Navbar = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const items = NAV_BY_ROLE[user?.role] || [];
 
   const handleLogout = async () => {
     await logout();
     navigate('/login');
   };
 
-  const getRoleBadge = (role) => {
-    switch (role) {
-      case 'ADMIN':
-        return 'bg-zinc-800 text-zinc-300 border-zinc-700';
-      case 'FACULTY':
-        return 'bg-zinc-800 text-zinc-300 border-zinc-700';
-      case 'STUDENT':
-      default:
-        return 'bg-zinc-800 text-zinc-300 border-zinc-700';
-    }
-  };
+  const initials = (user?.name || 'U')
+    .split(' ')
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
 
   return (
-    <header className="sticky top-0 z-40 bg-zinc-950/80 backdrop-blur-md border-b border-zinc-800/80">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
-        {/* Brand */}
-        <Link to="/dashboard" className="flex items-center gap-2.5 group">
-          <div className="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-100 group-hover:border-zinc-700 transition">
-            <Shield className="w-4 h-4 text-zinc-200" />
-          </div>
-          <div className="flex items-baseline gap-1.5">
-            <span className="font-semibold text-zinc-100 tracking-tight text-sm">
-              ExamShield
-            </span>
-            <span className="text-[10px] text-zinc-500 font-normal">
-              Platform
-            </span>
-          </div>
-        </Link>
+    <header className="felt sticky top-0 z-40 border-b border-board-deep text-white">
+      <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 sm:px-6 lg:px-8">
+        <Wordmark />
 
-        {/* User Info & Actions */}
-        <div className="flex items-center gap-3">
+        <nav aria-label="Main" className="ml-2 hidden h-full items-stretch gap-1 md:flex">
+          <NavItems items={items} />
+        </nav>
+
+        <div className="ml-auto flex items-center gap-1.5">
           <Link
             to="/profile"
-            title="View Profile & Security"
-            className="flex items-center gap-2 p-1 rounded-lg hover:bg-zinc-900 border border-transparent hover:border-zinc-800 transition group cursor-pointer"
+            className="flex items-center gap-2.5 rounded-[5px] px-2 py-1.5 transition-colors hover:bg-white/10"
+            title="Profile and security"
           >
-            <div className="w-7 h-7 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-400 group-hover:text-zinc-200">
-              <User className="w-3.5 h-3.5" />
-            </div>
-            <div className="hidden sm:block text-left">
-              <div className="text-xs font-medium text-zinc-200 group-hover:text-white leading-none flex items-center gap-1.5">
-                <span>{user?.name || 'User'}</span>
-                <span className={`text-[9px] px-1.5 py-0.5 rounded border uppercase tracking-wider font-mono ${getRoleBadge(user?.role)}`}>
-                  {user?.role}
-                </span>
-              </div>
-              <div className="text-[11px] text-zinc-500 leading-none mt-1">
-                {user?.batch ? user.batch : user?.email}
-              </div>
-            </div>
+            <span className="caps flex h-8 w-8 items-center justify-center rounded-full bg-paper text-[13px] text-board" aria-hidden="true">
+              {initials}
+            </span>
+            <span className="hidden text-left leading-tight sm:block">
+              <span className="block text-sm font-bold text-white">{user?.name || 'User'}</span>
+              <span className="block text-xs text-board-ink">
+                {ROLE_LABEL[user?.role] || user?.role}
+                {user?.batch ? ` · ${user.batch}` : ''}
+              </span>
+            </span>
           </Link>
-
-          <div className="h-4 w-px bg-zinc-800 hidden sm:block mx-1" />
-
-
           <button
+            type="button"
             onClick={handleLogout}
-            title="Sign Out"
-            className="p-1.5 sm:px-2.5 sm:py-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900 rounded-lg text-xs font-medium transition cursor-pointer flex items-center gap-1.5 border border-transparent hover:border-zinc-800"
+            aria-label="Sign out"
+            className="inline-flex h-10 items-center gap-2 rounded-[5px] px-2.5 text-sm font-semibold text-board-ink transition-colors hover:bg-white/10 hover:text-white"
           >
-            <LogOut className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Logout</span>
+            <LogOut className="h-4 w-4" aria-hidden="true" />
+            <span className="hidden sm:inline">Sign out</span>
           </button>
         </div>
       </div>
+
+      {items.length > 1 && (
+        <nav aria-label="Main (mobile)" className="flex gap-1 overflow-x-auto border-t border-white/10 px-2 md:hidden">
+          <NavItems items={items} mobile />
+        </nav>
+      )}
     </header>
   );
 };
 
 export default Navbar;
-

@@ -3,19 +3,18 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import { useProctoring } from '../../hooks/useProctoring';
 import {
-  Clock,
-  Shield,
   AlertCircle,
-  CheckCircle2,
   Bookmark,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  Send,
+  Clock,
   Loader2,
-  RotateCcw,
   Maximize2,
-  HelpCircle
+  RotateCcw,
+  Send
 } from 'lucide-react';
+import { Alert, Button, Dialog, EmptyNotice, Field, Figure, Sheet, Spinner, Stamp, Textarea, cx } from '../../components/ui';
 
 const ExamPlayer = () => {
   const { id } = useParams();
@@ -361,417 +360,416 @@ const ExamPlayer = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentIndex, questions, currentQuestion, isSubmitModalOpen, isWarningOpen]);
 
+  const isLastQuestion = currentIndex === questions.length - 1;
+  const lowTime = remainingSeconds > 0 && remainingSeconds < 120;
+  const hasAnswer = !!(currentAnswer && (currentAnswer.selectedOptionId || currentAnswer.textAnswer));
+  const questionHeadingId = currentQuestion ? `q-${currentQuestion.id}` : undefined;
+
+  const saveLabel = {
+    saving: { text: 'Saving…', cls: 'text-ink-faint' },
+    saved: { text: 'Saved', cls: 'text-stock-mint-ink' },
+    retrying: { text: 'Not saved yet, retrying…', cls: 'text-stock-canary-ink font-bold' },
+    error: { text: 'Not saved', cls: 'text-alarm font-bold' }
+  }[saveStatus];
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col items-center justify-center space-y-2.5">
-        <Loader2 className="w-6 h-6 text-zinc-400 animate-spin" />
-        <p className="text-xs text-zinc-500 font-mono">ExamShield Proctor initializing...</p>
+      <div className="flex min-h-screen items-center justify-center">
+        <Spinner label="Preparing your exam paper" />
       </div>
     );
   }
 
   if (error && !attempt) {
     return (
-      <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center p-4">
-        <div className="max-w-sm w-full p-6 bg-zinc-900 border border-zinc-800 rounded-xl text-center space-y-3">
-          <AlertCircle className="w-8 h-8 text-rose-400 mx-auto" />
-          <h2 className="text-sm font-semibold text-zinc-100">Access Denied</h2>
-          <p className="text-xs text-zinc-400">{error}</p>
-          <button
-            onClick={() => navigate('/student')}
-            className="px-3.5 py-1.5 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 rounded-lg text-xs font-medium transition"
-          >
-            Back to Assessments
-          </button>
-        </div>
+      <div className="flex min-h-screen items-center justify-center">
+        <EmptyNotice
+          title="Cannot open this exam"
+          action={
+            <Button variant="secondary" onClick={() => navigate('/student')}>
+              Back to timetable
+            </Button>
+          }
+        >
+          {error}
+        </EmptyNotice>
       </div>
     );
   }
 
+  const QuestionGrid = () => (
+    <div>
+      <ol className="grid grid-cols-5 gap-1.5" aria-label="Questions">
+        {questions.map((q, idx) => {
+          const ans = answers[q.id];
+          const isAnswered = !!(ans && (ans.selectedOptionId || ans.textAnswer));
+          const isFlagged = flaggedQuestions.has(q.id);
+          const isCurrent = idx === currentIndex;
+          const state = isCurrent ? 'current' : isAnswered ? 'answered' : 'unanswered';
+          return (
+            <li key={q.id}>
+              <button
+                type="button"
+                onClick={() => setCurrentIndex(idx)}
+                aria-current={isCurrent ? 'step' : undefined}
+                aria-label={`Question ${idx + 1}, ${isAnswered ? 'answered' : 'not answered'}${isFlagged ? ', marked for review' : ''}`}
+                className={cx(
+                  'num relative flex h-11 w-full items-center justify-center rounded-[4px] border text-[15px] font-bold transition-[background-color,border-color,scale] duration-150 active:scale-[0.96]',
+                  state === 'current' && 'border-ink bg-hl text-ink',
+                  state === 'answered' && 'border-ink bg-ink text-white',
+                  state === 'unanswered' && 'border-paper-rule bg-paper text-ink-soft hover:border-ink-faint'
+                )}
+              >
+                {idx + 1}
+                {isFlagged && (
+                  <Bookmark className="absolute -right-1 -top-1.5 h-4 w-4 fill-stock-canary text-stock-canary-ink" aria-hidden="true" />
+                )}
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+      <ul className="mt-4 space-y-1.5 text-sm text-ink-soft">
+        <li className="flex items-center gap-2">
+          <span className="h-3.5 w-3.5 rounded-[3px] border border-ink bg-ink" aria-hidden="true" />
+          Answered
+        </li>
+        <li className="flex items-center gap-2">
+          <span className="h-3.5 w-3.5 rounded-[3px] border border-paper-rule bg-paper" aria-hidden="true" />
+          Not answered
+        </li>
+        <li className="flex items-center gap-2">
+          <Bookmark className="h-3.5 w-3.5 fill-stock-canary text-stock-canary-ink" aria-hidden="true" />
+          Marked for review
+        </li>
+      </ul>
+    </div>
+  );
+
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col select-none">
-      {/* Top Header */}
-      <header className="h-14 bg-zinc-950 border-b border-zinc-800/80 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-200">
-            <Shield className="w-3.5 h-3.5" />
+    <div className="flex min-h-screen flex-col bg-paper-ground">
+      {/* Exam header: title, the clock, standing */}
+      <header className="sticky top-0 z-30 border-b border-paper-rule bg-paper">
+        <div className="h-1 bg-board" aria-hidden="true" />
+        <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4 sm:px-6">
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[15px] font-bold text-ink">{attempt?.examTitle || 'Exam in progress'}</div>
+            <div className="num hidden text-sm text-ink-faint sm:block">
+              {answeredCount} of {questions.length} answered
+            </div>
           </div>
-          <span className="text-xs font-semibold text-zinc-200 tracking-tight">
-            ExamShield Proctor
+
+          <div
+            className={cx(
+              'num flex shrink-0 items-baseline gap-1.5 rounded-[5px] px-3 py-1.5',
+              lowTime ? 'bg-ink text-white' : 'text-ink'
+            )}
+            role="timer"
+            aria-live={lowTime ? 'assertive' : 'off'}
+            aria-label={`${formatTime(remainingSeconds)} remaining`}
+          >
+            <Clock className="h-4 w-4 self-center" aria-hidden="true" />
+            <span className="text-[1.6rem] font-bold leading-none sm:text-[1.9rem]">{formatTime(remainingSeconds)}</span>
+            <span className="hidden text-sm font-semibold sm:inline">{lowTime ? 'left, finish up' : 'left'}</span>
+          </div>
+
+          <div className="flex flex-1 items-center justify-end gap-2">
+            <Stamp status={violationCount > 0 ? 'ALERT' : 'NEUTRAL'} className="hidden sm:inline-flex">
+              <span className="num">
+                {violationCount}/{maxViolations}
+              </span>{' '}
+              violations
+            </Stamp>
+            {!isFullscreen && (
+              <Button variant="secondary" size="sm" onClick={enterFullscreen} aria-label="Return to fullscreen" title="Return to fullscreen">
+                <Maximize2 className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            )}
+            <Button variant="ink" size="sm" onClick={() => setIsSubmitModalOpen(true)}>
+              <Send className="h-4 w-4" aria-hidden="true" />
+              Finish
+            </Button>
+          </div>
+        </div>
+        {/* Phones: standing on its own line, so the header never wraps */}
+        <div className="num flex items-center justify-between border-t border-paper-line px-4 py-1.5 text-sm sm:hidden">
+          <span className="text-ink-soft">
+            {answeredCount} of {questions.length} answered
           </span>
+          <Stamp status={violationCount > 0 ? 'ALERT' : 'NEUTRAL'}>
+            <span className="num">
+              {violationCount}/{maxViolations}
+            </span>{' '}
+            violations
+          </Stamp>
         </div>
-
-        {/* Minimalist Centered Timer */}
-        <div className="flex items-center gap-2">
-          <div
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg border text-xs font-mono font-medium ${
-              remainingSeconds < 120
-                ? 'bg-rose-500/10 border-rose-500/30 text-rose-400'
-                : 'bg-zinc-900 border-zinc-800 text-zinc-200'
-            }`}
-          >
-            <Clock className="w-3.5 h-3.5 text-zinc-400" />
-            <span>{formatTime(remainingSeconds)}</span>
-          </div>
-        </div>
-
-        {/* Right Status & Submit */}
-        <div className="flex items-center gap-3">
-          <div
-            className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium font-mono ${
-              violationCount > 0
-                ? 'bg-rose-500/10 border-rose-500/30 text-rose-400'
-                : 'bg-zinc-900 border-zinc-800 text-zinc-400'
-            }`}
-          >
-            <span>
-              {violationCount} / {maxViolations} Violations
-            </span>
-          </div>
-
-          {!isFullscreen && (
-            <button
-              onClick={enterFullscreen}
-              className="p-1.5 bg-zinc-900 border border-zinc-800 text-zinc-300 rounded-lg hover:border-zinc-700 transition cursor-pointer"
-              title="Return to Fullscreen"
-            >
-              <Maximize2 className="w-3.5 h-3.5" />
-            </button>
-          )}
-
-          <button
-            onClick={() => setIsSubmitModalOpen(true)}
-            className="px-3 py-1.5 bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-semibold rounded-lg transition cursor-pointer shadow-sm flex items-center gap-1"
-          >
-            <Send className="w-3 h-3" />
-            <span className="hidden sm:inline">Finish</span>
-          </button>
+        <div className="h-[3px] bg-paper-line" aria-hidden="true">
+          <div className="h-full bg-board transition-[width] duration-500 ease-out-expo" style={{ width: `${progressPercent}%` }} />
         </div>
       </header>
 
-      {/* Thin Progress Indicator Line */}
-      <div className="h-0.5 w-full bg-zinc-900">
-        <div
-          className="h-full bg-zinc-400 transition-all duration-300"
-          style={{ width: `${progressPercent}%` }}
-        />
-      </div>
-
-      {/* Main Examination Workspace */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-        {/* Question Area */}
-        <main className="flex-1 p-4 sm:p-8 lg:p-10 overflow-y-auto flex flex-col justify-between">
+      <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 pb-28 pt-6 sm:px-6 lg:flex-row lg:pb-10">
+        {/* The question sheet */}
+        <main className="min-w-0 flex-1">
           {currentQuestion && (
-            <div className="max-w-2xl mx-auto w-full space-y-6">
-              {/* Question Meta Bar */}
-              <div className="flex items-center justify-between border-b border-zinc-800/60 pb-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-zinc-200">
-                    Question {currentIndex + 1} of {questions.length}
-                  </span>
-                  <span className="text-zinc-600">•</span>
-                  <span className="text-xs text-zinc-500">
-                    {currentQuestion.marks} Mark{currentQuestion.marks > 1 ? 's' : ''}
+            <Sheet as="article" className="px-5 py-6 sm:px-9 sm:py-8" aria-labelledby={questionHeadingId}>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-paper-line pb-4">
+                <div className="flex items-baseline gap-3">
+                  <span className="display num text-[2.6rem] text-ink">Q{currentIndex + 1}</span>
+                  <span className="num text-sm text-ink-faint">
+                    of {questions.length} · {currentQuestion.marks} mark{currentQuestion.marks === 1 ? '' : 's'}
                   </span>
                 </div>
-
                 <div className="flex items-center gap-3">
-                  <span className="text-[11px] text-zinc-500 font-mono">
-                    {saveStatus === 'saving' ? (
-                      'Saving...'
-                    ) : saveStatus === 'saved' ? (
-                      'Saved'
-                    ) : saveStatus === 'retrying' ? (
-                      <span className="text-amber-400">Not saved, retrying...</span>
-                    ) : (
-                      <span className="text-rose-400">Save error</span>
-                    )}
+                  <span className={cx('flex items-center gap-1.5 text-sm', saveLabel.cls)} aria-live="polite">
+                    {saveStatus === 'saved' && <CheckCircle2 className="h-4 w-4" aria-hidden="true" />}
+                    {saveStatus === 'saving' && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+                    {(saveStatus === 'retrying' || saveStatus === 'error') && <AlertCircle className="h-4 w-4" aria-hidden="true" />}
+                    {saveLabel.text}
                   </span>
-
-                  <button
+                  <Button
+                    variant={flaggedQuestions.has(currentQuestion.id) ? 'secondary' : 'ghost'}
+                    size="sm"
                     onClick={() => toggleFlag(currentQuestion.id)}
-                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border transition cursor-pointer ${
-                      flaggedQuestions.has(currentQuestion.id)
-                        ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
-                        : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
-                    }`}
+                    aria-pressed={flaggedQuestions.has(currentQuestion.id)}
+                    className={flaggedQuestions.has(currentQuestion.id) ? 'border-stock-canary-ink/40 bg-stock-canary' : ''}
                   >
-                    <Bookmark className="w-3 h-3" />
-                    <span>{flaggedQuestions.has(currentQuestion.id) ? 'Flagged' : 'Review [F]'}</span>
-                  </button>
+                    <Bookmark
+                      className={cx('h-4 w-4', flaggedQuestions.has(currentQuestion.id) && 'fill-stock-canary-ink text-stock-canary-ink')}
+                      aria-hidden="true"
+                    />
+                    {flaggedQuestions.has(currentQuestion.id) ? 'Marked for review' : 'Mark for review'}
+                  </Button>
                 </div>
               </div>
 
-              {/* Question Text */}
-              <div className="py-1">
-                <h2 className="text-base font-medium text-zinc-100 leading-relaxed whitespace-pre-wrap">
-                  {currentQuestion.text}
-                </h2>
-              </div>
+              <h2 id={questionHeadingId} className="mt-6 max-w-[70ch] whitespace-pre-wrap text-[1.2rem] font-semibold leading-relaxed text-ink sm:text-[1.3rem]">
+                {currentQuestion.text}
+              </h2>
 
-              {/* Options Selection */}
-              <div className="space-y-2.5 pt-1">
+              <div className="mt-6">
                 {currentQuestion.type === 'SHORT_ANSWER' ? (
-                  <div>
-                    <textarea
-                      rows={5}
+                  <Field label="Your answer" hint="Your answer saves a moment after you stop typing.">
+                    <Textarea
+                      rows={6}
                       value={currentAnswer?.textAnswer || ''}
                       onChange={(e) => handleAnswerSelect(currentQuestion.id, null, e.target.value)}
-                      placeholder="Type your answer here..."
-                      className="w-full p-3.5 bg-zinc-900 border border-zinc-800 rounded-xl text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500 transition leading-relaxed"
+                      className="text-[17px]"
                     />
-                  </div>
+                  </Field>
                 ) : (
-                  currentQuestion.options?.map((option, idx) => {
-                    const optionLetter = String.fromCharCode(65 + idx);
-                    const isSelected = currentAnswer?.selectedOptionId === option.id;
-
-                    return (
-                      <div
-                        key={option.id}
-                        onClick={() => handleAnswerSelect(currentQuestion.id, option.id, null)}
-                        className={`flex items-start gap-3 p-3.5 rounded-xl border transition cursor-pointer select-none ${
-                          isSelected
-                            ? 'bg-zinc-800/90 border-zinc-600 text-zinc-100 shadow-sm'
-                            : 'bg-zinc-900/60 border-zinc-800/80 text-zinc-300 hover:bg-zinc-900 hover:border-zinc-700'
-                        }`}
-                      >
-                        <div
-                          className={`w-5 h-5 rounded-md flex items-center justify-center font-mono text-[10px] font-medium shrink-0 mt-0.5 ${
-                            isSelected
-                              ? 'bg-zinc-100 text-zinc-950 font-bold'
-                              : 'border border-zinc-700 text-zinc-400'
-                          }`}
+                  <div role="radiogroup" aria-labelledby={questionHeadingId} className="space-y-2.5">
+                    {currentQuestion.options?.map((option, idx) => {
+                      const letter = String.fromCharCode(65 + idx);
+                      const isSelected = currentAnswer?.selectedOptionId === option.id;
+                      return (
+                        <button
+                          key={option.id}
+                          type="button"
+                          role="radio"
+                          aria-checked={isSelected}
+                          onClick={() => handleAnswerSelect(currentQuestion.id, option.id, null)}
+                          className={cx(
+                            'flex min-h-[3.5rem] w-full items-center gap-4 rounded-[5px] border px-4 py-3 text-left',
+                            'transition-[border-color,background-color,scale] duration-150 active:scale-[0.99]',
+                            isSelected ? 'border-ink bg-paper' : 'border-paper-rule bg-paper hover:border-ink-faint hover:bg-paper-tint'
+                          )}
                         >
-                          {optionLetter}
-                        </div>
-                        <span className="text-xs leading-relaxed mt-0.5">{option.text}</span>
-                      </div>
-                    );
-                  })
+                          <span
+                            className={cx(
+                              'caps flex h-8 w-8 shrink-0 items-center justify-center rounded-[3px] border text-[15px]',
+                              isSelected ? 'border-ink bg-ink text-white' : 'border-ink-faint/60 text-ink-soft'
+                            )}
+                            aria-hidden="true"
+                          >
+                            {letter}
+                          </span>
+                          <span className={cx('text-[17px] leading-snug text-ink', isSelected && 'hl-mark font-semibold')}>{option.text}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
-            </div>
+
+              {/* Desktop navigation */}
+              <div className="mt-8 hidden items-center justify-between border-t border-paper-line pt-5 lg:flex">
+                <Button variant="secondary" disabled={currentIndex === 0} onClick={() => setCurrentIndex((prev) => prev - 1)}>
+                  <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                  Previous
+                </Button>
+                {hasAnswer && (
+                  <Button variant="ghost" size="sm" onClick={() => handleAnswerSelect(currentQuestion.id, null, null)}>
+                    <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                    Clear answer
+                  </Button>
+                )}
+                {isLastQuestion ? (
+                  <Button variant="ink" onClick={() => setIsSubmitModalOpen(true)}>
+                    Review and submit
+                    <Send className="h-4 w-4" aria-hidden="true" />
+                  </Button>
+                ) : (
+                  <Button variant="primary" onClick={() => setCurrentIndex((prev) => prev + 1)}>
+                    Next
+                    <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                  </Button>
+                )}
+              </div>
+              <p className="mt-4 hidden text-sm text-ink-faint lg:block">
+                Keys: ← → move between questions · A–E choose an option · F marks for review
+              </p>
+            </Sheet>
           )}
 
-          {/* Navigation Controls Bar */}
-          <div className="max-w-2xl mx-auto w-full pt-6 flex items-center justify-between border-t border-zinc-800/80">
-            <button
-              disabled={currentIndex === 0}
-              onClick={() => setCurrentIndex((prev) => prev - 1)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-zinc-900 hover:bg-zinc-850 disabled:opacity-30 disabled:pointer-events-none text-zinc-300 rounded-lg text-xs font-medium border border-zinc-800 transition cursor-pointer"
-            >
-              <ChevronLeft className="w-3.5 h-3.5" />
-              <span>Previous</span>
-            </button>
-
-            {currentAnswer && (currentAnswer.selectedOptionId || currentAnswer.textAnswer) && (
-              <button
-                onClick={() => handleAnswerSelect(currentQuestion.id, null, null)}
-                className="text-[11px] text-zinc-500 hover:text-rose-400 transition cursor-pointer flex items-center gap-1"
-              >
-                <RotateCcw className="w-3 h-3" />
-                Clear
-              </button>
-            )}
-
-            {currentIndex < questions.length - 1 ? (
-              <button
-                onClick={() => setCurrentIndex((prev) => prev + 1)}
-                className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-zinc-100 hover:bg-white text-zinc-950 rounded-lg text-xs font-semibold transition cursor-pointer shadow-sm"
-              >
-                <span>Next</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            ) : (
-              <button
-                onClick={() => setIsSubmitModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-zinc-100 hover:bg-white text-zinc-950 rounded-lg text-xs font-semibold transition cursor-pointer shadow-sm"
-              >
-                <span>Review & Submit</span>
-                <Send className="w-3 h-3" />
-              </button>
-            )}
-          </div>
+          {/* Mobile: all questions in a collapsible list */}
+          <details className="sheet mt-4 px-5 py-4 lg:hidden">
+            <summary className="flex cursor-pointer items-center justify-between text-[15px] font-bold text-ink">
+              All questions
+              <span className="num text-sm font-normal text-ink-faint">
+                {answeredCount}/{questions.length} answered
+              </span>
+            </summary>
+            <div className="mt-4">
+              <QuestionGrid />
+            </div>
+          </details>
         </main>
 
-        {/* Question Palette Sidebar */}
-        <aside className="w-full lg:w-72 bg-zinc-950 border-t lg:border-t-0 lg:border-l border-zinc-800/80 p-5 flex flex-col justify-between shrink-0">
-          <div className="space-y-4">
-            <div className="flex items-baseline justify-between">
-              <span className="text-xs font-medium text-zinc-200">
-                Question Index
-              </span>
-              <span className="text-[11px] font-mono text-zinc-500">
-                {answeredCount}/{questions.length} Answered
+        {/* Desktop question index */}
+        <aside className="hidden w-72 shrink-0 lg:block" aria-label="Question index">
+          <Sheet className="sticky top-28 px-5 py-5">
+            <div className="mb-4 flex items-baseline justify-between">
+              <h2 className="caps text-[15px] text-ink">Questions</h2>
+              <span className="num text-sm text-ink-faint">
+                {answeredCount}/{questions.length}
               </span>
             </div>
-
-            {/* Questions Grid */}
-            <div className="grid grid-cols-5 gap-1.5 max-h-72 lg:max-h-96 overflow-y-auto pr-1">
-              {questions.map((q, idx) => {
-                const ans = answers[q.id];
-                const isAnswered = ans && (ans.selectedOptionId || ans.textAnswer);
-                const isFlagged = flaggedQuestions.has(q.id);
-                const isCurrent = idx === currentIndex;
-
-                return (
-                  <button
-                    key={q.id}
-                    onClick={() => setCurrentIndex(idx)}
-                    className={`h-9 rounded-lg text-xs font-mono font-medium transition flex items-center justify-center relative cursor-pointer ${
-                      isCurrent ? 'ring-1 ring-zinc-300 ring-offset-2 ring-offset-zinc-950' : ''
-                    } ${
-                      isFlagged
-                        ? 'bg-amber-500/10 text-amber-300 border border-amber-500/30'
-                        : isAnswered
-                        ? 'bg-zinc-800 text-zinc-100 border border-zinc-700'
-                        : 'bg-zinc-900/60 text-zinc-500 hover:text-zinc-300 border border-zinc-800'
-                    }`}
-                  >
-                    {idx + 1}
-                    {isFlagged && (
-                      <span className="absolute top-1 right-1 w-1 h-1 rounded-full bg-amber-400" />
-                    )}
-                  </button>
-                );
-              })}
+            <QuestionGrid />
+            <div className="mt-5 border-t border-paper-line pt-4">
+              <Button variant="ink" className="w-full" onClick={() => setIsSubmitModalOpen(true)}>
+                <Send className="h-4 w-4" aria-hidden="true" />
+                Submit exam
+              </Button>
             </div>
-
-            {/* Legend */}
-            <div className="space-y-1.5 pt-3 border-t border-zinc-800/80 text-[11px] text-zinc-400">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded bg-zinc-800 border border-zinc-700 shrink-0" />
-                <span>Answered</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded bg-amber-500/20 border border-amber-500/40 shrink-0" />
-                <span>Marked for Review</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded bg-zinc-900 border border-zinc-800 shrink-0" />
-                <span>Unanswered</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-4 border-t border-zinc-800/80">
-            <button
-              onClick={() => setIsSubmitModalOpen(true)}
-              className="w-full py-2 bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-semibold rounded-lg transition cursor-pointer shadow-sm flex items-center justify-center gap-1.5"
-            >
-              <Send className="w-3.5 h-3.5" />
-              <span>Submit Assessment</span>
-            </button>
-          </div>
+          </Sheet>
         </aside>
       </div>
 
-      {/* Violation Alert Modal */}
-      {isWarningOpen && (
-        <div className="fixed inset-0 z-50 bg-zinc-950/90 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="max-w-sm w-full bg-zinc-900 border border-zinc-800 rounded-xl p-6 text-center space-y-4 shadow-xl">
-            <div className="w-10 h-10 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center mx-auto">
-              <Shield className="w-5 h-5" />
-            </div>
-
-            <div className="space-y-1">
-              <h3 className="text-sm font-semibold text-zinc-100">
-                {isAutoSubmitted ? 'Assessment Terminated' : 'Security Alert'}
-              </h3>
-              <p className="text-xs text-zinc-400 leading-relaxed">{warningMessage}</p>
-            </div>
-
-            <div className="p-2.5 bg-zinc-950 rounded-lg border border-zinc-800 text-xs text-zinc-400 font-mono">
-              Recorded: <span className="text-rose-400 font-semibold">{violationCount}</span> of{' '}
-              <span className="text-zinc-200">{maxViolations}</span> allowed
-            </div>
-
-            {!isAutoSubmitted && (
-              <button
-                onClick={dismissWarning}
-                className="w-full py-2 bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs rounded-lg transition cursor-pointer"
-              >
-                Return to Fullscreen
-              </button>
+      {/* Mobile: navigation in thumb reach */}
+      {currentQuestion && (
+        <nav
+          aria-label="Question navigation"
+          className="fixed inset-x-0 bottom-0 z-30 border-t border-paper-rule bg-paper px-3 pt-2.5 shadow-[0_-6px_16px_-10px_rgba(20,33,61,0.3)] lg:hidden"
+          style={{ paddingBottom: 'max(0.625rem, env(safe-area-inset-bottom))' }}
+        >
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" size="lg" className="flex-1" disabled={currentIndex === 0} onClick={() => setCurrentIndex((prev) => prev - 1)}>
+              <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+              Prev
+            </Button>
+            {isLastQuestion ? (
+              <Button variant="ink" size="lg" className="flex-1" onClick={() => setIsSubmitModalOpen(true)}>
+                Submit
+                <Send className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            ) : (
+              <Button variant="primary" size="lg" className="flex-1" onClick={() => setCurrentIndex((prev) => prev + 1)}>
+                Next
+                <ChevronRight className="h-5 w-5" aria-hidden="true" />
+              </Button>
             )}
           </div>
-        </div>
+          {hasAnswer && (
+            <button
+              type="button"
+              onClick={() => handleAnswerSelect(currentQuestion.id, null, null)}
+              className="mx-auto mt-1 flex min-h-9 items-center gap-1.5 px-3 text-sm text-ink-faint"
+            >
+              <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+              Clear answer
+            </button>
+          )}
+        </nav>
       )}
 
-      {/* Submit Confirmation Modal */}
-      {isSubmitModalOpen && (
-        <div className="fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="max-w-sm w-full bg-zinc-900 border border-zinc-800 rounded-xl p-6 space-y-5 shadow-xl">
-            <div className="flex items-center gap-2.5 border-b border-zinc-800 pb-3">
-              <HelpCircle className="w-4 h-4 text-zinc-400" />
-              <h3 className="text-sm font-semibold text-zinc-100">Confirm Submission</h3>
-            </div>
-
-            <div className="space-y-2.5 text-xs text-zinc-300">
-              <p className="text-zinc-400">Are you sure you want to finish your assessment?</p>
-
-              <div className="grid grid-cols-2 gap-2 p-3 bg-zinc-950 rounded-lg border border-zinc-800 text-center">
-                <div>
-                  <span className="text-[10px] text-zinc-500 uppercase block">Answered</span>
-                  <span className="text-sm font-semibold text-zinc-100 font-mono">
-                    {answeredCount}/{questions.length}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-zinc-500 uppercase block">Unanswered</span>
-                  <span className="text-sm font-semibold text-zinc-400 font-mono">
-                    {questions.length - answeredCount}
-                  </span>
-                </div>
-              </div>
-
-              {flaggedQuestions.size > 0 && (
-                <p className="text-amber-400/90 text-[11px]">
-                  Notice: You have {flaggedQuestions.size} question{flaggedQuestions.size > 1 ? 's' : ''} marked for review.
-                </p>
-              )}
-
-              {submitError && (
-                <p className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-[11px] flex items-start gap-2">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px" />
-                  <span>{submitError}</span>
-                </p>
-              )}
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-1">
-              <button
-                type="button"
-                disabled={isSubmitting}
-                onClick={() => {
-                  setIsSubmitModalOpen(false);
-                  setSubmitError('');
-                }}
-                className="px-3.5 py-1.5 bg-zinc-850 hover:bg-zinc-800 text-zinc-300 text-xs font-medium rounded-lg transition cursor-pointer"
-              >
-                Back
-              </button>
-
-              <button
-                type="button"
-                disabled={isSubmitting}
-                onClick={handleSubmitExam}
-                className="px-4 py-1.5 bg-zinc-100 hover:bg-white disabled:bg-zinc-800 text-zinc-950 text-xs font-semibold rounded-lg transition cursor-pointer flex items-center gap-1.5 shadow-sm"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    <span>Submitting...</span>
-                  </>
-                ) : (
-                  <span>Submit Exam</span>
-                )}
-              </button>
-            </div>
+      {/* Violation notice */}
+      <Dialog
+        open={isWarningOpen}
+        title={isAutoSubmitted ? 'Exam submitted' : 'Violation recorded'}
+        dismissible={false}
+        size="sm"
+        footer={
+          !isAutoSubmitted && (
+            <Button variant="ink" className="w-full" onClick={dismissWarning}>
+              <Maximize2 className="h-4 w-4" aria-hidden="true" />
+              Back to my exam
+            </Button>
+          )
+        }
+      >
+        <div className="flex items-center gap-4">
+          <div className="num shrink-0 rounded-[4px] bg-stock-salmon px-3 py-2 text-center text-stock-salmon-ink">
+            <div className="text-[2rem] font-bold leading-none">{violationCount}</div>
+            <div className="caps mt-1 text-[11px]">of {maxViolations}</div>
           </div>
+          <p className="text-[15px] leading-snug text-ink">{warningMessage}</p>
         </div>
-      )}
+        {isAutoSubmitted && <p className="mt-4 text-sm text-ink-soft">Taking you to your result…</p>}
+      </Dialog>
+
+      {/* Submit confirmation */}
+      <Dialog
+        open={isSubmitModalOpen}
+        title="Submit your exam?"
+        size="sm"
+        onClose={
+          isSubmitting
+            ? undefined
+            : () => {
+                setIsSubmitModalOpen(false);
+                setSubmitError('');
+              }
+        }
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              disabled={isSubmitting}
+              onClick={() => {
+                setIsSubmitModalOpen(false);
+                setSubmitError('');
+              }}
+            >
+              Keep working
+            </Button>
+            <Button variant="ink" loading={isSubmitting} onClick={handleSubmitExam}>
+              {isSubmitting ? 'Submitting…' : 'Submit exam'}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-[15px] text-ink-soft">You cannot change your answers after submitting.</p>
+        <div className="mt-4 grid grid-cols-2 divide-x divide-paper-line rounded-[4px] border border-paper-line">
+          <Figure className="px-4 py-3" label="Answered" value={`${answeredCount}/${questions.length}`} />
+          <Figure
+            className="px-4 py-3"
+            label="Not answered"
+            value={questions.length - answeredCount}
+            tone={questions.length - answeredCount > 0 ? 'text-stock-canary-ink' : 'text-ink'}
+          />
+        </div>
+        {flaggedQuestions.size > 0 && (
+          <Alert tone="warn" className="mt-4">
+            {flaggedQuestions.size} question{flaggedQuestions.size > 1 ? 's are' : ' is'} still marked for review.
+          </Alert>
+        )}
+        {submitError && (
+          <Alert tone="error" className="mt-4">
+            {submitError}
+          </Alert>
+        )}
+      </Dialog>
     </div>
   );
 };

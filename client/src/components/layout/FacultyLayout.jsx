@@ -1,62 +1,14 @@
 import React from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
 import Navbar from './Navbar';
-import { FileText, BookOpen } from 'lucide-react';
 
-const FacultyLayout = () => {
-  const location = useLocation();
-
-  const navItems = [
-    {
-      name: 'Assessments',
-      path: '/faculty/exams',
-      icon: FileText
-    },
-    {
-      name: 'Question Bank',
-      path: '/faculty/questions',
-      icon: BookOpen
-    }
-  ];
-
-  return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
-      <Navbar />
-
-      {/* Sub-Navigation Bar */}
-      <div className="bg-zinc-950 border-b border-zinc-800/80 sticky top-14 z-20">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <nav className="flex items-center gap-1.5 overflow-x-auto py-2">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = location.pathname.startsWith(item.path);
-
-              return (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition shrink-0 cursor-pointer ${
-                    isActive
-                      ? 'bg-zinc-850 text-zinc-100 border border-zinc-700/80 shadow-sm'
-                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900 border border-transparent'
-                  }`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  <span>{item.name}</span>
-                </NavLink>
-              );
-            })}
-          </nav>
-        </div>
-      </div>
-
-      {/* Main Faculty Page Outlet */}
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Outlet />
-      </main>
-    </div>
-  );
-};
+const FacultyLayout = () => (
+  <div className="flex min-h-screen flex-col">
+    <Navbar />
+    <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+      <Outlet />
+    </main>
+  </div>
+);
 
 export default FacultyLayout;
-

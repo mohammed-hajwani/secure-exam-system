@@ -1,21 +1,30 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, ArrowRight, CheckCircle2, CircleAlert, Maximize2, Wifi, WifiOff } from 'lucide-react';
 import Navbar from '../../components/layout/Navbar';
 import api from '../../services/api';
-import {
-  Shield,
-  Clock,
-  FileText,
-  AlertCircle,
-  CheckCircle2,
-  Maximize2,
-  ArrowRight,
-  Loader2,
-  ArrowLeft,
-  Monitor,
-  Wifi,
-  EyeOff
-} from 'lucide-react';
+import { Alert, Button, EmptyNotice, Figure, Sheet, Spinner } from '../../components/ui';
+import { fmtDay, fmtWindow } from '../../utils/format';
+
+const fullscreenAvailable = () =>
+  typeof document !== 'undefined' && !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+
+const Check = ({ ok, title, detail }) => (
+  <li className="flex items-start gap-3 py-3">
+    {ok ? (
+      <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-board" aria-hidden="true" />
+    ) : (
+      <CircleAlert className="mt-0.5 h-5 w-5 shrink-0 text-stock-canary-ink" aria-hidden="true" />
+    )}
+    <div>
+      <div className="font-bold text-ink">
+        {title}
+        <span className="sr-only">{ok ? ' (ready)' : ' (needs attention)'}</span>
+      </div>
+      <div className="text-sm text-ink-soft">{detail}</div>
+    </div>
+  </li>
+);
 
 const ExamBriefing = () => {
   const { id } = useParams();
@@ -26,6 +35,8 @@ const ExamBriefing = () => {
   const [error, setError] = useState('');
   const [agreed, setAgreed] = useState(false);
   const [entering, setEntering] = useState(false);
+  const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine);
+  const canFullscreen = fullscreenAvailable();
 
   useEffect(() => {
     const fetchExamDetails = async () => {
@@ -34,26 +45,37 @@ const ExamBriefing = () => {
         const response = await api.get(`/exams/${id}`);
         setExam(response.data?.data);
       } catch (err) {
-        setError(err.response?.data?.error || 'Failed to load assessment details');
+        setError(err.response?.data?.error || 'Could not load this exam.');
       } finally {
         setLoading(false);
       }
     };
-
     fetchExamDetails();
   }, [id]);
 
+  useEffect(() => {
+    const up = () => setOnline(true);
+    const down = () => setOnline(false);
+    window.addEventListener('online', up);
+    window.addEventListener('offline', down);
+    return () => {
+      window.removeEventListener('online', up);
+      window.removeEventListener('offline', down);
+    };
+  }, []);
+
   const handleStartExam = async () => {
     if (!agreed) return;
-
     try {
       setEntering(true);
       const docEl = document.documentElement;
-      if (docEl.requestFullscreen) {
-        await docEl.requestFullscreen();
-      } else if (docEl.webkitRequestFullscreen) {
-        await docEl.webkitRequestFullscreen();
-      }
+      const request = docEl.requestFullscreen
+        ? docEl.requestFullscreen()
+        : docEl.webkitRequestFullscreen
+        ? docEl.webkitRequestFullscreen()
+        : null;
+      // Some browsers never settle the fullscreen promise; never let that block the exam
+      if (request) await Promise.race([request, new Promise((resolve) => setTimeout(resolve, 1500))]);
     } catch (err) {
       console.warn('Browser fullscreen blocked or unsupported:', err);
     } finally {
@@ -61,164 +83,120 @@ const ExamBriefing = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center">
-        <Loader2 className="w-6 h-6 text-zinc-400 animate-spin" />
-      </div>
-    );
-  }
-
-  if (error || !exam) {
-    return (
-      <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col items-center justify-center p-4">
-        <div className="max-w-md w-full p-6 bg-zinc-900 border border-zinc-800 rounded-xl text-center space-y-3">
-          <AlertCircle className="w-8 h-8 text-rose-400 mx-auto" />
-          <h2 className="text-sm font-semibold text-zinc-100">Assessment Unavailable</h2>
-          <p className="text-xs text-zinc-400">{error || 'Exam could not be found'}</p>
-          <button
-            onClick={() => navigate('/student')}
-            className="px-3.5 py-1.5 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 rounded-lg text-xs font-medium transition cursor-pointer"
-          >
-            Return to Assessments
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
+    <div className="flex min-h-screen flex-col">
       <Navbar />
 
-      <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-8">
-        <button
-          onClick={() => navigate('/student')}
-          className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition mb-6 cursor-pointer"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          Back to Assessments
-        </button>
+      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8 sm:px-6 sm:py-10">
+        <Button variant="ghost" size="sm" className="-ml-2 mb-4" onClick={() => navigate('/student')}>
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          Back to timetable
+        </Button>
 
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 sm:p-8 space-y-6 shadow-sm">
-          {/* Header */}
-          <div className="border-b border-zinc-800 pb-5">
-            <span className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider block mb-1">
-              Pre-Flight Security Verification
-            </span>
-            <h1 className="text-xl font-semibold text-zinc-100 tracking-tight">
-              {exam.title}
-            </h1>
-            <p className="text-xs text-zinc-400 mt-1">
-              Subject: <span className="text-zinc-200 font-medium">{exam.subject}</span> • Cohort:{' '}
-              <span className="text-zinc-200 font-medium">{exam.targetBatch}</span>
-            </p>
-          </div>
-
-          {/* Quick Metrics */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="p-3.5 bg-zinc-950 border border-zinc-800 rounded-lg">
-              <span className="text-[10px] text-zinc-500 uppercase tracking-wider block">Duration</span>
-              <span className="text-sm font-semibold text-zinc-100 mt-0.5 block">{exam.durationMinutes} Mins</span>
+        {loading ? (
+          <Spinner label="Loading exam details" />
+        ) : error || !exam ? (
+          <EmptyNotice
+            title="Exam unavailable"
+            action={
+              <Button variant="secondary" onClick={() => navigate('/student')}>
+                Back to timetable
+              </Button>
+            }
+          >
+            {error || 'This exam could not be found.'}
+          </EmptyNotice>
+        ) : (
+          <Sheet as="article" className="overflow-hidden" aria-labelledby="paper-title">
+            <div className="border-b-2 border-ink px-6 pb-6 pt-7 sm:px-9">
+              <h1 id="paper-title" className="display text-[2.6rem] text-ink sm:text-[3.4rem]">
+                {exam.title}
+              </h1>
+              <p className="num mt-3 text-[15px] text-ink-soft">
+                {exam.subject} · Batch {exam.targetBatch} · {fmtDay(exam.startTime)}, window {fmtWindow(exam.startTime, exam.endTime)}
+              </p>
             </div>
 
-            <div className="p-3.5 bg-zinc-950 border border-zinc-800 rounded-lg">
-              <span className="text-[10px] text-zinc-500 uppercase tracking-wider block">Questions</span>
-              <span className="text-sm font-semibold text-zinc-100 mt-0.5 block">{exam.questionCount} Items</span>
+            <div className="grid grid-cols-3 divide-x divide-paper-line border-b border-paper-line">
+              <Figure className="px-4 py-4 sm:px-9" label="Time allowed" value={exam.durationMinutes} unit="min" />
+              <Figure className="px-4 py-4 sm:px-6" label="Questions" value={exam.questionCount} />
+              <Figure className="px-4 py-4 sm:px-6" label="Violations allowed" value={exam.maxViolations} tone="text-stock-salmon-ink" />
             </div>
 
-            <div className="p-3.5 bg-zinc-950 border border-zinc-800 rounded-lg">
-              <span className="text-[10px] text-zinc-500 uppercase tracking-wider block">Violation Limit</span>
-              <span className="text-sm font-semibold text-rose-400 mt-0.5 block">{exam.maxViolations} Allowed</span>
+            <div className="grid gap-8 px-6 py-7 sm:px-9 md:grid-cols-2">
+              <section aria-labelledby="instructions-heading">
+                <h2 id="instructions-heading" className="caps text-base text-ink">
+                  Instructions to candidates
+                </h2>
+                <ol className="mt-3 list-decimal space-y-2.5 pl-5 text-[15px] leading-snug text-ink-soft marker:font-bold marker:text-ink">
+                  <li>The exam opens in fullscreen and stays there until you submit.</li>
+                  <li>Switching tabs, leaving the window or exiting fullscreen is recorded as a violation.</li>
+                  <li>
+                    At <strong className="num text-ink">{exam.maxViolations}</strong> violations the exam submits itself and is flagged for your
+                    instructor.
+                  </li>
+                  <li>Answers save automatically. When time runs out, everything saved is submitted.</li>
+                </ol>
+              </section>
+
+              <section aria-labelledby="checks-heading">
+                <h2 id="checks-heading" className="caps text-base text-ink">
+                  This device
+                </h2>
+                <ul className="mt-1 divide-y divide-paper-line">
+                  <Check
+                    ok={online}
+                    title={online ? 'Connected' : 'You are offline'}
+                    detail={online ? 'Answers will save as you go.' : 'Reconnect before you begin, or your answers cannot be saved.'}
+                  />
+                  <Check
+                    ok={canFullscreen}
+                    title={canFullscreen ? 'Fullscreen available' : 'Fullscreen not available here'}
+                    detail={
+                      canFullscreen
+                        ? 'The exam will switch to fullscreen when you begin.'
+                        : 'This browser cannot go fullscreen. Tab and focus checks still apply.'
+                    }
+                  />
+                </ul>
+                <div className="sr-only" aria-live="polite">
+                  {online ? '' : 'You are offline.'}
+                </div>
+                <div className="mt-3 flex items-center gap-2 text-sm text-ink-faint">
+                  {online ? <Wifi className="h-4 w-4" aria-hidden="true" /> : <WifiOff className="h-4 w-4" aria-hidden="true" />}
+                  <Maximize2 className="h-4 w-4" aria-hidden="true" />
+                  Checked just now on this browser.
+                </div>
+              </section>
             </div>
-          </div>
 
-          {/* System Readiness Checks */}
-          <div className="space-y-2">
-            <span className="text-xs font-medium text-zinc-300 block">System Readiness</span>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <div className="flex items-center gap-2.5 p-3 bg-zinc-950 border border-zinc-800 rounded-lg text-xs">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <div className="flex-1">
-                  <span className="font-medium text-zinc-200 block">Display Resolution</span>
-                  <span className="text-[11px] text-zinc-500 font-mono">
-                    {window.screen.width} x {window.screen.height} (Optimal)
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2.5 p-3 bg-zinc-950 border border-zinc-800 rounded-lg text-xs">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <div className="flex-1">
-                  <span className="font-medium text-zinc-200 block">Fullscreen API</span>
-                  <span className="text-[11px] text-zinc-500">Supported & Ready</span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2.5 p-3 bg-zinc-950 border border-zinc-800 rounded-lg text-xs">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <div className="flex-1">
-                  <span className="font-medium text-zinc-200 block">Network Connection</span>
-                  <span className="text-[11px] text-zinc-500">Online & Synchronized</span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2.5 p-3 bg-zinc-950 border border-zinc-800 rounded-lg text-xs">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <div className="flex-1">
-                  <span className="font-medium text-zinc-200 block">Active Proctoring</span>
-                  <span className="text-[11px] text-zinc-500">Tab & Focus Watchdog Ready</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Exam Rules */}
-          <div className="p-4 bg-zinc-950/60 border border-zinc-800 rounded-lg space-y-2 text-xs text-zinc-400 leading-relaxed">
-            <span className="font-medium text-zinc-200 block">Important Rules</span>
-            <ul className="list-disc pl-4 space-y-1">
-              <li>Fullscreen mode is required throughout the entire assessment.</li>
-              <li>Switching tabs, minimizing, or clicking outside the window triggers a recorded security incident.</li>
-              <li>Exceeding {exam.maxViolations} violations will trigger automatic submission and flag your attempt for instructor audit.</li>
-              <li>When the timer reaches zero, all answers are automatically submitted.</li>
-            </ul>
-          </div>
-
-          {/* Agreement Checkbox */}
-          <div className="flex items-start gap-3 p-3 bg-zinc-950 border border-zinc-800 rounded-lg">
-            <input
-              type="checkbox"
-              id="consent"
-              checked={agreed}
-              onChange={(e) => setAgreed(e.target.checked)}
-              className="w-4 h-4 mt-0.5 rounded text-zinc-900 bg-zinc-900 border-zinc-700 cursor-pointer"
-            />
-            <label htmlFor="consent" className="text-xs text-zinc-300 cursor-pointer select-none leading-relaxed">
-              I agree to abide by the ExamShield academic integrity guidelines. I will maintain browser focus in fullscreen mode and take this test without unauthorized aids.
-            </label>
-          </div>
-
-          {/* Action */}
-          <div className="pt-2 flex justify-end">
-            <button
-              disabled={!agreed || entering}
-              onClick={handleStartExam}
-              className="w-full sm:w-auto px-6 py-2.5 bg-zinc-100 hover:bg-white disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-950 text-xs font-semibold rounded-lg transition flex items-center justify-center gap-2 cursor-pointer shadow-sm"
-            >
-              {entering ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Entering Exam Room...</span>
-                </>
-              ) : (
-                <>
-                  <span>Begin Assessment</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </>
+            <div className="border-t border-paper-line bg-paper-tint px-6 py-5 sm:px-9">
+              {!online && (
+                <Alert tone="warn" className="mb-4">
+                  You are offline. You can begin, but nothing will save until you reconnect.
+                </Alert>
               )}
-            </button>
-          </div>
-        </div>
+              <label htmlFor="consent" className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  id="consent"
+                  checked={agreed}
+                  onChange={(e) => setAgreed(e.target.checked)}
+                  className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer rounded-[3px] border-ink-faint accent-board"
+                />
+                <span className="text-[15px] leading-snug text-ink">
+                  I will work alone, without unauthorised aids, and keep this exam in front of me until I submit.
+                </span>
+              </label>
+              <div className="mt-5 flex justify-end">
+                <Button size="lg" variant="ink" className="w-full sm:w-auto" disabled={!agreed} loading={entering} onClick={handleStartExam}>
+                  {entering ? 'Opening exam…' : 'Begin exam'}
+                  {!entering && <ArrowRight className="h-4 w-4" aria-hidden="true" />}
+                </Button>
+              </div>
+            </div>
+          </Sheet>
+        )}
       </main>
     </div>
   );

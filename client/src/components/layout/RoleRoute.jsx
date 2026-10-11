@@ -1,7 +1,7 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Loader2 } from 'lucide-react';
+import { Spinner } from '../ui';
 
 /**
  * Route wrapper that restricts access based on authenticated user's role
@@ -13,8 +13,8 @@ const RoleRoute = ({ children, allowedRoles }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">
-        <Loader2 className="w-8 h-8 text-emerald-400 animate-spin" />
+      <div className="flex min-h-screen items-center justify-center">
+        <Spinner label="Checking your session" />
       </div>
     );
   }

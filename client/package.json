@@ -9,6 +9,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@fontsource-variable/archivo": "^5.3.0",
+    "@fontsource-variable/atkinson-hyperlegible-next": "^5.3.0",
     "axios": "^1.6.8",
     "clsx": "^2.1.0",
     "lucide-react": "^0.359.0",

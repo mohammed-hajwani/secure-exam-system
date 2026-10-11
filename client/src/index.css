@@ -3,33 +3,167 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
   body {
-    @apply font-sans bg-zinc-950 text-zinc-100 antialiased;
-    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    @apply bg-paper-ground font-sans text-ink antialiased;
+    font-size: 16px;
+    line-height: 1.5;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  /* Browser surfaces carry the design too */
+  ::selection {
+    background: #e3f24c;
+    color: #14213d;
+  }
+
+  :focus-visible {
+    outline: 2px solid #14213d;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 5px #e3f24c;
+    border-radius: 2px;
+  }
+
+  input,
+  textarea,
+  select {
+    caret-color: #2f6b4f;
+  }
+
+  a {
+    text-underline-offset: 3px;
+    text-decoration-thickness: 1px;
+  }
+
+  * {
+    scrollbar-color: #b9c2b6 transparent;
+    scrollbar-width: thin;
   }
 }
 
-/* Minimalist dark scrollbar */
-::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+@layer components {
+  /* Condensed timetable caps: notice titles, column heads, stamps */
+  .caps {
+    font-family: 'Archivo Variable', sans-serif;
+    font-stretch: 72%;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .display {
+    font-family: 'Archivo Variable', sans-serif;
+    font-stretch: 68%;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0;
+    line-height: 0.92;
+  }
+
+  .num {
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: 'tnum' 1, 'lnum' 1;
+  }
+
+  /* A printed sheet sitting on the board or the page ground */
+  .sheet {
+    @apply rounded-sheet bg-paper shadow-sheet;
+  }
+
+  /*
+   * Signature: the highlighter swipe. Reserved for you / now
+   * (your next exam, current question, chosen option).
+   */
+  .hl-mark {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .hl-mark::before {
+    content: '';
+    position: absolute;
+    inset: 12% -6px 10% -6px;
+    z-index: -1;
+    background: linear-gradient(100deg, rgba(227, 242, 76, 0) 0%, rgba(227, 242, 76, 0.85) 1.5%, #e3f24c 6%, #e3f24c 94%, rgba(227, 242, 76, 0.8) 98.5%, rgba(227, 242, 76, 0) 100%);
+    border-radius: 3px 6px 4px 7px;
+    transform: rotate(-0.6deg);
+    /* Visible by default; the sweep only plays on top of an already-visible mark */
+    animation: hl-swipe 520ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .hl-row {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .hl-row::before {
+    content: '';
+    position: absolute;
+    inset: 4px -2px;
+    z-index: -1;
+    background: linear-gradient(98deg, rgba(227, 242, 76, 0) 0%, #e3f24c 0.8%, #e3f24c 99.2%, rgba(227, 242, 76, 0) 100%);
+    border-radius: 2px 8px 3px 10px;
+    transform: rotate(-0.25deg);
+    animation: hl-swipe 640ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  /* Ruled rows on timetables, registers and tables */
+  .rule-b {
+    border-bottom: 1px solid #e5e9e3;
+  }
+
+  /* Pushpin used only on the landing page and empty states */
+  .pin {
+    position: absolute;
+    top: -8px;
+    left: 50%;
+    width: 18px;
+    height: 18px;
+    margin-left: -9px;
+    background: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'><circle cx='9' cy='9' r='7.5' fill='%23C8371F'/><circle cx='9' cy='9' r='7.5' fill='none' stroke='%238E2010' stroke-width='1.5'/><circle cx='9' cy='9' r='2.2' fill='%238E2010'/></svg>") center / contain no-repeat;
+    filter: drop-shadow(1px 3px 2px rgba(20, 33, 61, 0.35));
+  }
+
+  /* Felt texture for board surfaces (CSS only, no raster) */
+  .felt {
+    background-color: #2f6b4f;
+    background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='f'><feTurbulence type='fractalNoise' baseFrequency='1.15' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.55 -0.2'/></filter><rect width='100%25' height='100%25' filter='url(%23f)' opacity='0.22'/></svg>");
+    background-size: 220px 220px;
+  }
 }
 
-::-webkit-scrollbar-track {
-  background: #09090b;
+@keyframes hl-swipe {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
 }
 
-::-webkit-scrollbar-thumb {
-  background: #27272a;
-  border-radius: 9999px;
-}
+@media (prefers-reduced-motion: reduce) {
+  .hl-mark::before,
+  .hl-row::before {
+    animation: none;
+  }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #3f3f46;
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }
-
-/* Subtle focus ring */
-.focus-ring {
-  @apply focus:outline-none focus:ring-2 focus:ring-zinc-400/20 focus:border-zinc-500 transition;
-}
-
