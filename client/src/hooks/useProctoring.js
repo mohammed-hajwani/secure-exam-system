@@ -1,6 +1,17 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../services/api';
 
+const isFullscreenNow = () =>
+  typeof document !== 'undefined' &&
+  !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
+
+export const FULLSCREEN_REFUSED =
+  'This browser did not switch to fullscreen. Try again, or open the exam in Chrome, Edge, Firefox or Safari.';
+
+// False on iPhone Safari and in frames that are not allowed to go fullscreen
+export const fullscreenSupported = () =>
+  typeof document !== 'undefined' && !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+
 /**
  * Custom hook for active proctoring during an online examination
  *
@@ -20,41 +31,57 @@ export const useProctoring = ({
   isActive = false,
   onAutoSubmitted
 }) => {
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  // Read the real state on mount: the briefing page usually entered fullscreen already
+  const [isFullscreen, setIsFullscreen] = useState(isFullscreenNow);
   const [violationCount, setViolationCount] = useState(initialViolationCount);
   const [isWarningOpen, setIsWarningOpen] = useState(false);
   const [warningMessage, setWarningMessage] = useState('');
   const [isAutoSubmitted, setIsAutoSubmitted] = useState(false);
+  // True while a violation is being sent, so the page can wait for the warning instead of flashing other prompts
+  const [isReportingViolation, setIsReportingViolation] = useState(false);
+  const [fullscreenError, setFullscreenError] = useState('');
 
   const lastViolationTimeRef = useRef(0);
   const isAutoSubmittedRef = useRef(false);
 
-  // Check if currently in fullscreen
-  const checkFullscreen = useCallback(() => {
-    const fsElement =
-      document.fullscreenElement ||
-      document.webkitFullscreenElement ||
-      document.mozFullScreenElement ||
-      document.msFullscreenElement;
-    return !!fsElement;
-  }, []);
+  // The attempt loads after the first render; a resumed attempt brings its earlier violations
+  useEffect(() => {
+    setViolationCount((count) => Math.max(count, initialViolationCount));
+  }, [initialViolationCount]);
 
-  // Request browser fullscreen mode
+  const checkFullscreen = useCallback(() => isFullscreenNow(), []);
+
+  // Request browser fullscreen mode. Browsers only allow this straight after a
+  // click or key press, so call it from an event handler. Resolves to true on success.
   const enterFullscreen = useCallback(async () => {
-    try {
-      const el = document.documentElement;
-      if (el.requestFullscreen) {
-        await el.requestFullscreen();
-      } else if (el.webkitRequestFullscreen) {
-        await el.webkitRequestFullscreen();
-      } else if (el.msRequestFullscreen) {
-        await el.msRequestFullscreen();
-      }
+    if (isFullscreenNow()) {
       setIsFullscreen(true);
-      setIsWarningOpen(false);
+      return true;
+    }
+    try {
+      setFullscreenError('');
+      const el = document.documentElement;
+      const request = el.requestFullscreen
+        ? el.requestFullscreen()
+        : el.webkitRequestFullscreen
+        ? el.webkitRequestFullscreen()
+        : el.msRequestFullscreen
+        ? el.msRequestFullscreen()
+        : null;
+      // Some browsers never settle the promise; older Safari returns none and switches a moment later
+      if (request && request.then) {
+        await Promise.race([request, new Promise((resolve) => setTimeout(resolve, 1500))]);
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 400));
+      }
     } catch (err) {
       console.warn('Could not enter fullscreen:', err);
     }
+    // Trust the document, not the promise: some browsers ignore the request without an error
+    const ok = isFullscreenNow();
+    setIsFullscreen(ok);
+    if (!ok) setFullscreenError(FULLSCREEN_REFUSED);
+    return ok;
   }, []);
 
   // Exit fullscreen mode (e.g. on clean submission)
@@ -88,6 +115,7 @@ export const useProctoring = ({
       lastViolationTimeRef.current = now;
 
       try {
+        setIsReportingViolation(true);
         const response = await api.post(
           `/exams/${examId}/attempts/${attemptId}/violation`,
           {
@@ -126,20 +154,21 @@ export const useProctoring = ({
         }
       } catch (err) {
         console.error('Failed to report violation:', err);
+      } finally {
+        setIsReportingViolation(false);
       }
     },
     [isActive, examId, attemptId, violationCount, maxViolations, onAutoSubmitted]
   );
 
-  // Sync fullscreen state & handle fullscreen change
+  // Keep fullscreen state in sync at all times; only count exits while the exam is active
   useEffect(() => {
-    if (!isActive) return;
-
     const handleFullscreenChange = () => {
       const inFullscreen = checkFullscreen();
       setIsFullscreen(inFullscreen);
+      if (inFullscreen) setFullscreenError('');
 
-      if (!inFullscreen && !isAutoSubmittedRef.current) {
+      if (isActive && !inFullscreen && !isAutoSubmittedRef.current) {
         reportViolation('FULLSCREEN_EXIT', { reason: 'Student exited browser fullscreen' });
       }
     };
@@ -187,11 +216,11 @@ export const useProctoring = ({
     };
   }, [isActive, reportViolation]);
 
-  const dismissWarning = () => {
-    if (!isAutoSubmitted) {
-      enterFullscreen();
-      setIsWarningOpen(false);
-    }
+  // Called from the warning's button click, which allows the fullscreen request
+  const dismissWarning = async () => {
+    if (isAutoSubmitted) return;
+    if (fullscreenSupported()) await enterFullscreen();
+    setIsWarningOpen(false);
   };
 
   return {
@@ -201,6 +230,8 @@ export const useProctoring = ({
     isWarningOpen,
     warningMessage,
     isAutoSubmitted,
+    isReportingViolation,
+    fullscreenError,
     enterFullscreen,
     exitFullscreen,
     dismissWarning

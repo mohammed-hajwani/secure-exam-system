@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../services/api';
-import { useProctoring } from '../../hooks/useProctoring';
+import { fullscreenSupported, useProctoring } from '../../hooks/useProctoring';
 import {
   AlertCircle,
   Bookmark,
@@ -51,9 +51,11 @@ const ExamPlayer = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
 
-  // Auto-submitted callback
+  // Auto-submitted callback (exitFullscreen comes from the hook below, so go through a ref)
+  const exitFullscreenRef = useRef(null);
   const handleAutoSubmitted = useCallback(() => {
-    setTimeout(() => {
+    setTimeout(async () => {
+      if (exitFullscreenRef.current) await exitFullscreenRef.current();
       navigate(`/student/exams/${id}/result`);
     }, 2000);
   }, [id, navigate]);
@@ -66,6 +68,8 @@ const ExamPlayer = () => {
     isWarningOpen,
     warningMessage,
     isAutoSubmitted,
+    isReportingViolation,
+    fullscreenError,
     enterFullscreen,
     exitFullscreen,
     dismissWarning
@@ -77,6 +81,18 @@ const ExamPlayer = () => {
     isActive: !!attempt && attempt.status === 'IN_PROGRESS' && !isSubmitting,
     onAutoSubmitted: handleAutoSubmitted
   });
+  exitFullscreenRef.current = exitFullscreen;
+
+  // Leaving the player some other way (back button, link) should not strand the student in fullscreen.
+  // attemptIdRef guards against React StrictMode's test unmount, which runs before the attempt loads.
+  useEffect(
+    () => () => {
+      if (attemptIdRef.current && (document.fullscreenElement || document.webkitFullscreenElement)) {
+        (document.exitFullscreen || document.webkitExitFullscreen)?.call(document)?.catch?.(() => {});
+      }
+    },
+    []
+  );
 
   // Start or resume exam attempt on mount
   useEffect(() => {
@@ -105,8 +121,8 @@ const ExamPlayer = () => {
           }
         });
         setAnswers(initialAnswers);
-
-        enterFullscreen();
+        // No fullscreen request here: browsers refuse it outside a click. The briefing's
+        // Begin button enters fullscreen; if that did not happen, the page asks below.
       } catch (err) {
         if (!isMounted) return;
         const msg = err.response?.data?.error || 'Failed to start examination';
@@ -126,7 +142,7 @@ const ExamPlayer = () => {
       isMounted = false;
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [id, navigate, enterFullscreen]);
+  }, [id, navigate]);
 
   // Countdown timer ticker
   useEffect(() => {
@@ -360,6 +376,22 @@ const ExamPlayer = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentIndex, questions, currentQuestion, isSubmitModalOpen, isWarningOpen]);
 
+  // Out of fullscreen with no warning on screen (page reloaded, fullscreen refused at the start,
+  // or an exit inside the violation cooldown): block the paper until the student returns
+  const needsFullscreen =
+    fullscreenSupported() &&
+    attempt?.status === 'IN_PROGRESS' &&
+    !isFullscreen &&
+    !isWarningOpen &&
+    !isReportingViolation &&
+    !isSubmitting &&
+    !isAutoSubmitted;
+
+  // A proctoring prompt must never sit underneath the submit dialog
+  useEffect(() => {
+    if ((isWarningOpen || needsFullscreen) && !isSubmitting) setIsSubmitModalOpen(false);
+  }, [isWarningOpen, needsFullscreen, isSubmitting]);
+
   const isLastQuestion = currentIndex === questions.length - 1;
   const lowTime = remainingSeconds > 0 && remainingSeconds < 120;
   const hasAnswer = !!(currentAnswer && (currentAnswer.selectedOptionId || currentAnswer.textAnswer));
@@ -480,11 +512,6 @@ const ExamPlayer = () => {
               </span>{' '}
               violations
             </Stamp>
-            {!isFullscreen && (
-              <Button variant="secondary" size="sm" onClick={enterFullscreen} aria-label="Return to fullscreen" title="Return to fullscreen">
-                <Maximize2 className="h-4 w-4" aria-hidden="true" />
-              </Button>
-            )}
             <Button variant="ink" size="sm" onClick={() => setIsSubmitModalOpen(true)}>
               <Send className="h-4 w-4" aria-hidden="true" />
               Finish
@@ -716,6 +743,29 @@ const ExamPlayer = () => {
           <p className="text-[15px] leading-snug text-ink">{warningMessage}</p>
         </div>
         {isAutoSubmitted && <p className="mt-4 text-sm text-ink-soft">Taking you to your result…</p>}
+      </Dialog>
+
+      {/* Fullscreen required */}
+      <Dialog
+        open={needsFullscreen}
+        title="Return to fullscreen"
+        dismissible={false}
+        size="sm"
+        footer={
+          <Button variant="ink" className="w-full" onClick={enterFullscreen}>
+            <Maximize2 className="h-4 w-4" aria-hidden="true" />
+            Return to fullscreen
+          </Button>
+        }
+      >
+        <p className="text-[15px] leading-snug text-ink">
+          This exam runs in fullscreen. Your answers are saved and the clock is still running.
+        </p>
+        {fullscreenError && (
+          <Alert tone="error" className="mt-4">
+            {fullscreenError}
+          </Alert>
+        )}
       </Dialog>
 
       {/* Submit confirmation */}

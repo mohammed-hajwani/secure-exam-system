@@ -6,6 +6,7 @@ import { Alert, Button, Dialog, Figure, Sheet, Stamp, cx } from '../components/u
 import OptionList from '../components/exam/OptionList';
 import { PRACTICE_EXAM, preparePracticePaper } from '../data/practiceExam';
 import { fmtClock } from '../utils/format';
+import { FULLSCREEN_REFUSED, fullscreenSupported } from '../hooks/useProctoring';
 
 const isFullscreenNow = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
 
@@ -14,10 +15,12 @@ const requestFullscreen = async () => {
     const el = document.documentElement;
     const request = el.requestFullscreen ? el.requestFullscreen() : el.webkitRequestFullscreen ? el.webkitRequestFullscreen() : null;
     // Some browsers never settle the fullscreen promise; never let that block the paper
-    if (request) await Promise.race([request, new Promise((resolve) => setTimeout(resolve, 1500))]);
+    if (request && request.then) await Promise.race([request, new Promise((resolve) => setTimeout(resolve, 1500))]);
+    else await new Promise((resolve) => setTimeout(resolve, 400));
   } catch {
     // Not available on this device (e.g. iPhone Safari); focus checks still run
   }
+  return isFullscreenNow();
 };
 
 const exitFullscreen = async () => {
@@ -47,6 +50,8 @@ const PracticeExam = () => {
   const [warning, setWarning] = useState(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [endReason, setEndReason] = useState('');
+  const [inFullscreen, setInFullscreen] = useState(isFullscreenNow);
+  const [fullscreenError, setFullscreenError] = useState('');
   const lastViolationRef = useRef(0);
   const stageRef = useRef(stage);
   stageRef.current = stage;
@@ -95,6 +100,27 @@ const PracticeExam = () => {
       document.removeEventListener('webkitfullscreenchange', onFullscreen);
     };
   }, [stage, record]);
+
+  useEffect(() => {
+    const sync = () => {
+      const now = isFullscreenNow();
+      setInFullscreen(now);
+      if (now) setFullscreenError('');
+    };
+    document.addEventListener('fullscreenchange', sync);
+    document.addEventListener('webkitfullscreenchange', sync);
+    return () => {
+      document.removeEventListener('fullscreenchange', sync);
+      document.removeEventListener('webkitfullscreenchange', sync);
+    };
+  }, []);
+
+  // Out of fullscreen with no warning showing (e.g. an exit inside the 2-second cooldown)
+  const needsFullscreen = stage === 'exam' && fullscreenSupported() && !inFullscreen && !warning;
+
+  useEffect(() => {
+    if (warning || needsFullscreen) setConfirmOpen(false);
+  }, [warning, needsFullscreen]);
 
   useEffect(() => {
     if (stage !== 'exam') return undefined;
@@ -365,8 +391,8 @@ const PracticeExam = () => {
             variant="ink"
             className="w-full"
             onClick={async () => {
-              setWarning(null);
               await requestFullscreen();
+              setWarning(null);
             }}
           >
             <Maximize2 className="h-4 w-4" aria-hidden="true" />
@@ -383,6 +409,30 @@ const PracticeExam = () => {
             {VIOLATION_TEXT[warning?.type]} In a real exam this is written to the audit log with the time and your IP address.
           </p>
         </div>
+      </Dialog>
+
+      <Dialog
+        open={needsFullscreen}
+        title="Return to fullscreen"
+        dismissible={false}
+        size="sm"
+        footer={
+          <Button
+            variant="ink"
+            className="w-full"
+            onClick={async () => setFullscreenError((await requestFullscreen()) ? '' : FULLSCREEN_REFUSED)}
+          >
+            <Maximize2 className="h-4 w-4" aria-hidden="true" />
+            Return to fullscreen
+          </Button>
+        }
+      >
+        <p className="text-[15px] leading-snug text-ink">This paper runs in fullscreen. The clock is still running.</p>
+        {fullscreenError && (
+          <Alert tone="error" className="mt-4">
+            {fullscreenError}
+          </Alert>
+        )}
       </Dialog>
 
       <Dialog
