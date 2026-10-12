@@ -574,30 +574,36 @@ export const startExam = async ({ id, userId, role, batch, ipAddress }) => {
     };
   }
 
-  // Create new attempt
-  const newAttempt = await prisma.examAttempt.create({
-    data: {
-      examId: id,
-      studentId: userId,
-      status: 'IN_PROGRESS',
-      startedAt: now
-    }
-  });
-
   // Perform deterministic Fisher-Yates question shuffle per student
   const shuffledQuestions = shuffleArrayWithSeed(exam.questions, `${id}-${userId}`);
 
-  // Pre-seed StudentAnswer rows to lock in each student's personal displayOrder
-  if (shuffledQuestions.length > 0) {
-    await prisma.studentAnswer.createMany({
-      data: shuffledQuestions.map((eq, index) => ({
-        attemptId: newAttempt.id,
-        questionId: eq.question.id,
-        displayOrder: index + 1,
-        selectedOptionId: null,
-        textAnswer: null
-      }))
+  // Create the attempt with its StudentAnswer rows (which lock in each student's personal
+  // displayOrder) in one write, so a concurrent request never sees a half-built attempt
+  let newAttempt;
+  try {
+    newAttempt = await prisma.examAttempt.create({
+      data: {
+        examId: id,
+        studentId: userId,
+        status: 'IN_PROGRESS',
+        startedAt: now,
+        answers: {
+          create: shuffledQuestions.map((eq, index) => ({
+            questionId: eq.question.id,
+            displayOrder: index + 1,
+            selectedOptionId: null,
+            textAnswer: null
+          }))
+        }
+      }
     });
+  } catch (err) {
+    // Two start requests raced (double click, quick reload) and the other one created
+    // the attempt first: the unique (examId, studentId) constraint fired, so resume it
+    if (err.code === 'P2002') {
+      return startExam({ id, userId, role, batch, ipAddress });
+    }
+    throw err;
   }
 
   const secondsUntilExamEnd = Math.floor((endTime.getTime() - now.getTime()) / 1000);
